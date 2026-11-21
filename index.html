@@ -728,7 +728,7 @@ function svgObj(o){
     const S=SYM[o.kind];if(!S)return'';
     const inner=S.p.map(p=>`<path d="${p.d}" fill="${resC(p.f,o.color)}"${p.s?` stroke="${resC(p.s,o.color)}" stroke-width="${p.sw}"`:''}/>`).join('');
     let lab='';const L=labelInfo(o);
-    if(L)lab=(L.box?`<rect x="${L.box.x}" y="${L.box.y}" width="${L.box.w}" height="${L.box.h}" rx="${L.box.r}" fill="#ffffff" stroke="#3a3a3c" stroke-width="${L.box.sw}"/>`:'')+svgLines(L.lines,L.cx,L.top,L.lh,L.ls,FONTS.gothic,500,o.lc||'#111','middle');
+    if(L)lab=(L.box?`<rect x="${L.box.x}" y="${L.box.y}" width="${L.box.w}" height="${L.box.h}" rx="${L.box.r}" fill="#ECECEE" stroke="#3a3a3c" stroke-width="${L.box.sw}"/>`:'')+svgLines(L.lines,L.cx,L.top,L.lh,L.ls,FONTS.gothic,500,o.lc||'#111','middle');
     return `<g${op}><g transform="translate(${o.x} ${o.y}) rotate(${o.rot||0} ${o.w/2} ${o.h/2}) scale(${o.w/S.vw} ${o.h/S.vh})">${inner}</g>${lab}</g>`;
   }
   return'';
@@ -853,7 +853,7 @@ async function drawObj(ctx,o){
     if(S){ctx.save();ctx.translate(o.x+o.w/2,o.y+o.h/2);ctx.rotate((o.rot||0)*Math.PI/180);ctx.translate(-o.w/2,-o.h/2);ctx.scale(o.w/S.vw,o.h/S.vh);
       for(const p of S.p){const P=path2d(p.d);const f=resC(p.f,o.color);if(f!=='none'){ctx.fillStyle=f;ctx.fill(P)}if(p.s){ctx.strokeStyle=resC(p.s,o.color);ctx.lineWidth=p.sw;ctx.stroke(P)}}
       ctx.restore();
-      const L=labelInfo(o);if(L){if(L.box){const P=path2d(rr(L.box.x,L.box.y,L.box.w,L.box.h,L.box.r));ctx.fillStyle='#ffffff';ctx.fill(P);ctx.strokeStyle='#3a3a3c';ctx.lineWidth=L.box.sw;ctx.stroke(P)}
+      const L=labelInfo(o);if(L){if(L.box){const P=path2d(rr(L.box.x,L.box.y,L.box.w,L.box.h,L.box.r));ctx.fillStyle='#ECECEE';ctx.fill(P);ctx.strokeStyle='#3a3a3c';ctx.lineWidth=L.box.sw;ctx.stroke(P)}
         cLines(ctx,L.lines,L.cx,L.top,L.lh,L.ls,FONTS.gothic,500,o.lc||'#111','center')}}
   }
   ctx.restore();
