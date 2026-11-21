@@ -1,7 +1,7 @@
 # VISION 촬영 조감도 메이커
 
 교회 영상 크루(VISION Production & Film Crew)용 촬영 조감도 + 장비 리스트 웹앱.
-GitHub Pages로 배포: https://janyuck.github.io/vision-jodo/
+GitHub Pages로 배포: https://visionprod-crew.github.io/vision-jodo/ (저장소: visionprod-crew/vision-jodo, 이전 janyuck/vision-jodo에서 이전)
 
 ## 파일 구조
 - `src/app.html` — 원본 소스 (단일 HTML, CSS/JS 포함). 로고 자리는 `__LOGO__` 플레이스홀더.
