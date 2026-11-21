@@ -9,5 +9,8 @@ pwa = ('<meta name="theme-color" content="#141415">\n<link rel="manifest" href="
        '<link rel="apple-touch-icon" href="icon-180.png">\n<link rel="icon" type="image/png" href="icon-192.png">\n'
        '<meta name="apple-mobile-web-app-title" content="VISION 조감도">\n<meta name="mobile-web-app-capable" content="yes">')
 out = out.replace('<meta name="theme-color" content="#141415">', pwa, 1)
+import datetime
+stamp = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')
+out = out.replace('<meta charset="utf-8">', f'<meta charset="utf-8">\n<meta name="vision-build" content="{stamp}">', 1)
 (root / 'index.html').write_text(out, encoding='utf-8')
 print('built index.html', len(out), 'bytes')
