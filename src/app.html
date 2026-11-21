@@ -156,7 +156,7 @@ html,body{overscroll-behavior:none}
 /* compact: phones + tablets up to 1100px → canvas first, panels as drawers */
 @media (max-width:1100px),(pointer:coarse) and (max-width:1400px){
   #top{height:calc(50px + env(safe-area-inset-top));padding:env(safe-area-inset-top) max(10px,env(safe-area-inset-right)) 0 max(10px,env(safe-area-inset-left))}
-  #bZo,#bZi,#zoomv,#bGrid,#bHelp,.brand span{display:none}
+  #bZo,#bZi,#zoomv,#bGrid,#bGuide,#bHelp,.brand span{display:none}
   #bMore{display:inline-block}
   #app{top:calc(50px + env(safe-area-inset-top));display:block}
   #vp{position:absolute;left:0;right:0;top:0;bottom:calc(60px + env(safe-area-inset-bottom))}
@@ -211,7 +211,7 @@ html,body{overscroll-behavior:none}
 body[data-mode="sheet"] #sheetView{display:flex}
 body[data-mode="sheet"] #tools,body[data-mode="sheet"] #right,body[data-mode="sheet"] #stage{display:none}
 body[data-mode="sheet"] #app{grid-template-columns:372px 1fr}
-body[data-mode="sheet"] #bPlan,body[data-mode="sheet"] #bZo,body[data-mode="sheet"] #bZi,body[data-mode="sheet"] #zoomv,body[data-mode="sheet"] #bFit,body[data-mode="sheet"] #bGrid{display:none}
+body[data-mode="sheet"] #bPlan,body[data-mode="sheet"] #bZo,body[data-mode="sheet"] #bZi,body[data-mode="sheet"] #zoomv,body[data-mode="sheet"] #bFit,body[data-mode="sheet"] #bGrid,body[data-mode="sheet"] #bGuide{display:none}
 body[data-mode="sheet"] #selbar{display:none!important}
 .xl-rib{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:7px 10px;background:#f3f2f1;border-bottom:1px solid #d4d4d4}
 .xg{display:flex;align-items:center;gap:3px;padding-right:10px;border-right:1px solid #d4d4d4}
@@ -297,6 +297,7 @@ table.xl{border-collapse:separate;border-spacing:0;table-layout:fixed;user-selec
   <button id="bZo" title="축소 (⌘-)">−</button><span id="zoomv">100%</span><button id="bZi" title="확대 (⌘+)">+</button>
   <button id="bFit" title="화면에 맞추기 (⌘0)">맞춤</button>
   <button id="bGrid" title="격자 (⌘')">격자</button>
+  <button id="bGuide" title="자동 정렬 — 끌 때 네모칸·다른 오브젝트에 맞춰 붙기 (⌘U · 끄는 중 ⌘ 누르면 잠시 해제)">자동 정렬</button>
   <div class="grow"></div>
   <span id="acctSt" title="내 조감도 목록"></span><button id="bAcct" title="계정" style="display:none"></button>
   <button id="bHelp" title="단축키 (?)">단축키</button>
@@ -578,7 +579,7 @@ function blankDoc(){
 let doc, assets={}, sel=new Set(), tool='select', view={z:1,x:0,y:0};
 let focusCi=null, pinCi=null, tabs=[], active=0, newCount=0, tabsKey='';
 let hist=[], hi=-1, clip=null, pasteN=0, hlCam=null, space=false, drag=null, lastLayout=null;
-const ui={grid:false,snap:false};
+const ui={grid:false,snap:false,smart:true};
 const coarse=matchMedia('(pointer:coarse)').matches;
 const stage=$('#stage'), world=$('#world'), content=$('#content'), ov=$('#ov');
 const mc=document.createElement('canvas').getContext('2d');
@@ -822,6 +823,7 @@ function overlaySVG(){
     for(const p of H){if(p.id==='rot')h+=`<circle cx="${p.x}" cy="${p.y}" r="${hs*0.6}" fill="#fff" stroke="${A}" stroke-width="${sw*1.3}"/>`;
       else h+=`<rect x="${p.x-hs/2}" y="${p.y-hs/2}" width="${hs}" height="${hs}" fill="#fff" stroke="${A}" stroke-width="${sw*1.3}"/>`}
   }else if(objs.length>1){const u=union(objs.map(o=>aabb(o,false)));h+=`<rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" fill="none" stroke="${A}" stroke-width="${sw}" stroke-dasharray="${4*sw} ${3*sw}"/>`}
+  if(drag&&drag.mode==='move'&&drag.guides)for(const g of drag.guides)h+=g.x!=null?`<line x1="${g.x}" y1="${g.a}" x2="${g.x}" y2="${g.b}" stroke="#ff2fb3" stroke-width="${sw}"/>`:`<line x1="${g.a}" y1="${g.y}" x2="${g.b}" y2="${g.y}" stroke="#ff2fb3" stroke-width="${sw}"/>`;
   if(drag&&drag.mode==='marquee'){const m=drag.m;h+=`<rect x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" fill="rgba(238,108,26,.08)" stroke="${A}" stroke-width="${sw}" stroke-dasharray="${3*sw} ${3*sw}"/>`}
   return h;
 }
@@ -844,7 +846,7 @@ function renderViewOnly(){
   const vt=`translate(${view.x} ${view.y}) scale(${view.z})`;if(vt!==RC.vt){RC.vt=vt;world.setAttribute('transform',vt)}
   const oh=overlaySVG();if(oh!==RC.ovKey){RC.ovKey=oh;ov.innerHTML=oh}
   $('#zoomv').textContent=Math.round(view.z*PW/BASE_PX*100)+'%';renderTabs();
-  $('#bGrid').style.borderColor=ui.grid?'var(--acc)':'';
+  $('#bGrid').style.borderColor=ui.grid?'var(--acc)':'';$('#bGuide').style.borderColor=ui.smart?'var(--acc)':'';$('#bGuide').style.color=ui.smart?'var(--acc2)':'';
 }
 const sched=()=>{if(!rq)rq=requestAnimationFrame(render)};
 
@@ -1155,7 +1157,7 @@ stage.addEventListener('pointerdown',e=>{
       if(e.shiftKey){const s=new Set(sel);const has=sel.has(target.id);for(const id of grp)has?s.delete(id):s.add(id);setSel(s);if(has)return}
       else if(!sel.has(target.id))setSel(grp);
       if(e.altKey){const map={},cl=selObjs().map(o=>cloneObj(o,map));doc.objects.push(...cl);sel=new Set(cl.map(o=>o.id));buildLayers()}
-      drag={mode:'move',p0:p,start:selObjs().map(o=>({o,s:JSON.parse(JSON.stringify(o))})),moved:false};
+      drag={mode:'move',p0:p,start:selObjs().map(o=>({o,s:JSON.parse(JSON.stringify(o))})),moved:false};smartPrep(drag);
       return;
     }
     if(lastLayout){const b=lastLayout.blocks.find(b=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y-4&&p.y<=b.y+b.h);if(b&&!e.shiftKey){const L=linkedSyms(doc.cams[b.ci].id).filter(o=>!o.locked&&!o.hidden);pinCi=b.ci;setSel(new Set(L.map(o=>o.id)));scrollCam(b.ci);return}}
@@ -1183,7 +1185,9 @@ stage.addEventListener('pointermove',e=>{
   if(drag.mode==='move'){
     let dx=p.x-drag.p0.x,dy=p.y-drag.p0.y;
     if(e.shiftKey){if(Math.abs(dx)>Math.abs(dy))dy=0;else dx=0}
+    drag.guides=null;
     if(ui.snap&&drag.start.length){const s=drag.start[0].s,bx=s.type==='line'?s.x1:s.x,by=s.type==='line'?s.y1:s.y;dx=snapV(bx+dx)-bx;dy=snapV(by+dy)-by}
+    else if(ui.smart&&!e.metaKey&&!e.ctrlKey&&drag.sb){const r=smartSnap(drag,dx,dy,e.shiftKey&&dx===0,e.shiftKey&&dy===0);dx=r.dx;dy=r.dy;drag.guides=r.guides}
     for(const{o,s}of drag.start){if(o.type==='line'){o.x1=s.x1+dx;o.y1=s.y1+dy;o.x2=s.x2+dx;o.y2=s.y2+dy}else{o.x=s.x+dx;o.y=s.y+dy}}
   }else if(drag.mode==='marquee'){
     const m={x:Math.min(p.x,drag.p0.x),y:Math.min(p.y,drag.p0.y),w:Math.abs(p.x-drag.p0.x),h:Math.abs(p.y-drag.p0.y)};drag.m=m;
@@ -1227,6 +1231,25 @@ stage.addEventListener('dblclick',e=>{
   const o=selObjs()[0];if(!o)return;
   const f=$(`#insp ${o.type==='symbol'?(o.camId&&camById(o.camId)?'[data-f="operator"]':'[data-k="label"]'):'[data-k="text"]'}`);if(f){f.focus();f.select()}
 });
+/* smart guides: snap moving selection to edges/centers of plan boxes and other objects */
+function smartPrep(d){
+  const ids=new Set(d.start.map(x=>x.o.id));if(!ids.size){d.sb=null;return}
+  d.sb=union(d.start.map(x=>aabb(x.o,false)));
+  d.tg=doc.objects.filter(o=>!ids.has(o.id)&&!o.hidden).map(o=>aabb(o,false)).filter(b=>b.w<PW*0.98||b.h<PH*0.98);
+}
+function smartSnap(d,dx,dy,lockX,lockY){
+  const thr=7/view.z,b={x:d.sb.x+dx,y:d.sb.y+dy,w:d.sb.w,h:d.sb.h};
+  const mx=[b.x,b.x+b.w/2,b.x+b.w],my=[b.y,b.y+b.h/2,b.y+b.h];let bx=null,by=null;
+  for(const t of d.tg){
+    if(!lockX){const tx=[t.x,t.x+t.w/2,t.x+t.w];for(const m of mx)for(const v of tx){const df=v-m;if(Math.abs(df)<=thr&&(!bx||Math.abs(df)<Math.abs(bx.df)))bx={df,v}}}
+    if(!lockY){const ty=[t.y,t.y+t.h/2,t.y+t.h];for(const m of my)for(const v of ty){const df=v-m;if(Math.abs(df)<=thr&&(!by||Math.abs(df)<Math.abs(by.df)))by={df,v}}}
+  }
+  if(bx)dx+=bx.df;if(by)dy+=by.df;
+  const nb={x:d.sb.x+dx,y:d.sb.y+dy,w:d.sb.w,h:d.sb.h},guides=[],near=(a,v)=>Math.abs(a-v)<0.5;
+  if(bx){let a=nb.y,c=nb.y+nb.h;for(const t of d.tg)if(near(t.x,bx.v)||near(t.x+t.w/2,bx.v)||near(t.x+t.w,bx.v)){a=Math.min(a,t.y);c=Math.max(c,t.y+t.h)}guides.push({x:bx.v,a:a-6,b:c+6})}
+  if(by){let a=nb.x,c=nb.x+nb.w;for(const t of d.tg)if(near(t.y,by.v)||near(t.y+t.h/2,by.v)||near(t.y+t.h,by.v)){a=Math.min(a,t.x);c=Math.max(c,t.x+t.w)}guides.push({y:by.v,a:a-6,b:c+6})}
+  return{dx,dy,guides};
+}
 function doResize(o,s0,hid,p,e){
   const th=(s0.rot||0)*Math.PI/180,cos=Math.cos(th),sin=Math.sin(th),cx=s0.x+s0.w/2,cy=s0.y+s0.h/2;
   const dx=p.x-cx,dy=p.y-cy,qx=dx*cos+dy*sin,qy=-dx*sin+dy*cos;
@@ -1288,6 +1311,7 @@ window.addEventListener('keydown',e=>{
       BracketRight:()=>arrange(e.shiftKey?'front':'fwd'),BracketLeft:()=>arrange(e.shiftKey?'back':'bwd'),
       Digit2:()=>e.altKey?unlockAll():lockSel(),Digit3:()=>e.altKey?showAll():hideSel(),
       Digit0:fit,Digit1:()=>zoomTo(BASE_PX/PW),Equal:()=>zoomBy(1.25),NumpadAdd:()=>zoomBy(1.25),Minus:()=>zoomBy(0.8),NumpadSubtract:()=>zoomBy(0.8),
+      KeyU:toggleSmart,
       Quote:()=>{if(e.shiftKey){ui.snap=!ui.snap;toast(ui.snap?'격자에 맞추기 켜짐':'격자에 맞추기 꺼짐')}else ui.grid=!ui.grid;render()}};
     if(map[c]){e.preventDefault();map[c]()}return;
   }
@@ -1558,7 +1582,7 @@ function showHelp(){
   const k=(a,b)=>`<kbd>${a}</kbd><span>${b}</span>`;
   openModal(`<h2>단축키 <small style="color:var(--muted);font-weight:400;font-size:12px">일러스트레이터 기준 · Windows는 ⌘ 대신 Ctrl</small></h2><div class="keys">
   <h4>도구</h4>${k('V','선택')}${k('M','사각형')}${k('L','원형')}${k('\\','선')}${k('T','문자')}${k('H','손')}${k('Z','돋보기 (⌥ 축소)')}${k('Space','누른 채 드래그 = 이동')}
-  <h4>편집</h4>${k('⌘Z','실행 취소')}${k('⇧⌘Z','다시 실행')}${k('⌘C / ⌘X','복사 / 잘라내기')}${k('⌘V','붙여넣기')}${k('⌘F','제자리에 붙여넣기')}${k('⌘D','복제')}${k('⌥ + 드래그','복제하며 이동')}${k('⌫','삭제')}${k('←↑→↓','이동 (⇧ = 10배)')}${k('⌘A','모두 선택')}${k('⇧⌘A','선택 해제')}${k('⌘G / ⇧⌘G','그룹 / 그룹 해제')}
+  <h4>편집</h4>${k('⌘Z','실행 취소')}${k('⇧⌘Z','다시 실행')}${k('⌘C / ⌘X','복사 / 잘라내기')}${k('⌘V','붙여넣기')}${k('⌘F','제자리에 붙여넣기')}${k('⌘D','복제')}${k('⌥ + 드래그','복제하며 이동')}${k('⌘U','자동 정렬 켜기/끄기')}${k('드래그 중 ⌘','자동 정렬 잠시 해제')}${k('⌫','삭제')}${k('←↑→↓','이동 (⇧ = 10배)')}${k('⌘A','모두 선택')}${k('⇧⌘A','선택 해제')}${k('⌘G / ⇧⌘G','그룹 / 그룹 해제')}
   <h4>배치</h4>${k('⌘] / ⌘[','앞으로 / 뒤로')}${k('⇧⌘] / ⇧⌘[','맨 앞 / 맨 뒤')}${k('⌘2','잠금')}${k('⌥⌘2','모두 잠금 해제')}${k('⌘3','숨기기')}${k('⌥⌘3','모두 보이기')}
   <h4>드래그 중</h4>${k('⇧','비율 유지 · 45° 각도 고정')}${k('⌥','가운데 기준 크기 조절')}${k('⇧ + 회전','15° 단위 회전')}${k('심볼','기본 비율 유지 (⇧로 자유 변형)')}
   <h4>보기 · 파일</h4>${k('⌘0','화면에 맞추기')}${k('⌘1','100%')}${k('⌘+ / ⌘−','확대 / 축소')}${k("⌘'",'격자 보기')}${k("⇧⌘'",'격자에 맞추기')}${k('⌘S','저장 (.json)')}${k('⌘O','열기')}${k('⌘E','내보내기')}${k('?','이 창')}
@@ -1581,9 +1605,12 @@ $('#fImg').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)addPlan
 $('#bUndo').onclick=undo;$('#bRedo').onclick=redo;
 $('#bZi').onclick=()=>zoomBy(1.25);$('#bZo').onclick=()=>zoomBy(0.8);$('#bFit').onclick=fit;
 $('#bGrid').onclick=()=>{ui.grid=!ui.grid;render()};
+const toggleSmart=()=>{ui.smart=!ui.smart;try{localStorage.setItem('vision-smart',ui.smart?'1':'0')}catch(_){}toast(ui.smart?'자동 정렬 켜짐 · 끌 때 네모칸과 다른 오브젝트에 맞춰 붙어요':'자동 정렬 꺼짐');render()};
+$('#bGuide').onclick=toggleSmart;
+try{if(localStorage.getItem('vision-smart')==='0')ui.smart=false}catch(_){}
 $('#bHelp').onclick=showHelp;
 $('#bMore').onclick=()=>{
-  const items=[...(CLOUD.disabled?[]:[['bAcct',CLOUD.user?'계정 · 내 조감도':'로그인 · 계정 만들기']]),['bNew','새 문서'],['bOpen','열기 (.json)'],['bSave','저장 (.json)'],['bPlan','평면도 사진 넣기'],['bFit','화면에 맞추기'],['bGrid','격자 보기 켜기/끄기'],['bHelp','단축키 · 사용법']];
+  const items=[...(CLOUD.disabled?[]:[['bAcct',CLOUD.user?'계정 · 내 조감도':'로그인 · 계정 만들기']]),['bNew','새 문서'],['bOpen','열기 (.json)'],['bSave','저장 (.json)'],['bPlan','평면도 사진 넣기'],['bFit','화면에 맞추기'],['bGrid','격자 보기 켜기/끄기'],['bGuide','자동 정렬 켜기/끄기'],['bHelp','단축키 · 사용법']];
   openModal(`<h2>메뉴</h2><div class="opts">${items.map(([id,t])=>`<button class="opt" data-mm="${id}" style="justify-content:flex-start;font-size:15px">${t}</button>`).join('')}</div><div class="mfoot"><button onclick="closeModal()">닫기</button></div>`);
   $('#mbox').querySelectorAll('[data-mm]').forEach(b=>b.onclick=()=>{closeModal();$('#'+b.dataset.mm).click()});
 };$('#bExport').onclick=openExport;
