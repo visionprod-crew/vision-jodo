@@ -1,0 +1,24 @@
+rules_version = '2';
+// VISION 촬영 조감도 메이커 — Firestore 보안 규칙
+// 관리자 계정 = 이름 "admin" (u61646d696e@vision-jodo.app)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.email == 'u61646d696e@vision-jodo.app'; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function notBlocked(uid) {
+      return !exists(/databases/$(database)/documents/users/$(uid))
+        || get(/databases/$(database)/documents/users/$(uid)).data.get('blocked', false) != true;
+    }
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && !('blocked' in request.resource.data);
+      allow update: if isAdmin()
+        || (isOwner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['blocked']));
+      allow delete: if isAdmin();
+      match /{sub=**} {
+        allow read, write: if (isOwner(uid) && notBlocked(uid)) || isAdmin();
+      }
+    }
+  }
+}

@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#141415">
 <title>VISION 촬영 조감도 메이커</title>
+<script src="firebase-config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -262,6 +263,21 @@ table.xl{border-collapse:separate;border-spacing:0;table-layout:fixed;user-selec
 }
 @media (pointer:coarse){.xedit{display:inline-block}.xl-rib button{padding:7px 11px}#xlFx{font-size:16px}}
 @media (max-width:760px){.seg button{padding:5px 9px;font-size:12.5px}#top .brand{display:none}#top{gap:5px}.xl-rib{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:8px}.xl-rib::-webkit-scrollbar{display:none}.xg{flex-shrink:0}.xg:last-child{margin-left:0}}
+
+.login{max-width:380px;margin:0 auto}.lg-logo{height:22px;display:block;margin:0 auto 14px}
+.lg-err{color:#ff8080;min-height:18px;font-size:13px;margin:0 0 8px}
+.lg-alt{text-align:center;margin-top:12px;font-size:13px;color:var(--muted)}.lg-alt a{color:var(--acc2);text-decoration:none}
+#bAcct{display:flex;align-items:center;gap:5px}#bAcct .an{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm{background:var(--acc);color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:4px;font-weight:700}
+.blk{background:#5a2626;color:#ffb3b3;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:4px}
+#acctSt{font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap}#acctSt[data-st="saved"]{color:#7fdc9f}#acctSt[data-st="error"]{color:#ff8080}#acctSt[data-st="saving"]{color:var(--acc2)}
+.cdlist{max-height:56vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.cdoc,.cuser{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #303034}
+.cdoc:last-child,.cuser:last-child{border-bottom:0}
+.cd-main{flex:1;min-width:150px;cursor:pointer}.cd-main b{display:block;margin-bottom:2px}.cd-main small{color:var(--muted);font-size:12px}
+.cd-del{color:#ff9b9b}.armed{background:#7a2b2b!important;color:#fff!important}
+.cu-docs{flex-basis:100%}.cu-docs .cdoc{padding-left:16px;background:#2b2b2e;border-radius:6px;margin-top:4px}
+@media (max-width:760px){#bAcct .an,#acctSt{display:none!important}}
 ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#47474c;border-radius:6px;border:2px solid var(--panel)}::-webkit-scrollbar-track{background:transparent}
 </style>
 </head>
@@ -282,6 +298,7 @@ table.xl{border-collapse:separate;border-spacing:0;table-layout:fixed;user-selec
   <button id="bFit" title="화면에 맞추기 (⌘0)">맞춤</button>
   <button id="bGrid" title="격자 (⌘')">격자</button>
   <div class="grow"></div>
+  <span id="acctSt" title="내 조감도 목록"></span><button id="bAcct" title="계정" style="display:none"></button>
   <button id="bHelp" title="단축키 (?)">단축키</button>
   <button id="bExport" class="primary" title="PDF / JPG 내보내기 (⌘E)">내보내기</button>
   <button id="bMore" title="메뉴">⋯</button>
@@ -947,6 +964,7 @@ function closeTab(i){
   $('#cYes').onclick=async()=>{closeModal();if(await saveProject())doClose(active)};
 }
 function doClose(i){
+  if(tabs[i]&&tabs[i].cloud&&typeof flushCloud==='function')flushCloud(tabs[i]);
   const wasActive=i===active;if(!wasActive)stash();tabs.splice(i,1);
   if(!tabs.length){tabs.push(mkTab(blankDoc(),true));activate(0)}
   else if(wasActive)activate(Math.min(i,tabs.length-1));
@@ -968,7 +986,7 @@ $('#tabs').addEventListener('click',e=>{
   const c=e.target.closest('[data-close]');if(c){e.stopPropagation();closeTab(+c.dataset.close);return}
   if(e.target.closest('[data-rdis]')){recover=null;try{localStorage.removeItem('vision-jodo-recover')}catch(_){}tabsKey='';renderTabs();return}
   if(e.target.closest('.trec')){const r=recover;recover=null;try{localStorage.removeItem('vision-jodo-recover')}catch(_){}
-    Object.assign(assets,r.assets||{});for(const d of r.docs)addTab(normalize(d),false);toast(`${r.docs.length}개 문서를 복구했습니다`);return}
+    Object.assign(assets,r.assets||{});r.docs.forEach((d,i)=>{addTab(normalize(d),false);const c=(r.clouds||[])[i];if(c)tabs[active].cloud=c});toast(`${r.docs.length}개 문서를 복구했습니다`);return}
   if(e.target.closest('.tadd')){newDoc();return}
   const t=e.target.closest('.tab');if(t)switchTab(+t.dataset.i);
 });
@@ -1015,6 +1033,7 @@ function commit(){
   if(doc)syncSheet(doc);
   const s=snap();if(hist[hi]===s)return;hist=hist.slice(0,hi+1);hist.push(s);if(hist.length>200)hist.shift();hi=hist.length-1;
   const T=tabs[active];if(T){T.doc=doc;T.hist=hist;T.hi=hi}
+  if(typeof cloudOnCommit==='function')cloudOnCommit();
   if(mode==='sheet')renderSheet();
   clearTimeout(saveT);saveT=setTimeout(autosave,600);buildLayers();updUndo();updateCamLinks();tabsKey='';renderTabs();
 }
@@ -1024,7 +1043,7 @@ function redo(){if(hi<hist.length-1){hi++;restore(hist[hi])}}
 function updUndo(){$('#bUndo').disabled=hi<=0;$('#bRedo').disabled=hi>=hist.length-1}
 let warnedQuota=false;
 function autosave(){stash();const A={};for(const t of tabs)Object.assign(A,usedAssets(t.doc));
-  try{localStorage.setItem('vision-jodo-v2',JSON.stringify({tabs:tabs.map((t,i)=>({doc:t.doc,dirty:isDirty(i)})),assets:A}))}catch(e){if(!warnedQuota){warnedQuota=true;toast('자동 저장 공간이 부족해요 · 저장(⌘S)으로 파일을 남겨 주세요')}}}
+  try{localStorage.setItem('vision-jodo-v2',JSON.stringify({tabs:tabs.map((t,i)=>({doc:t.doc,dirty:isDirty(i),cloud:t.cloud||null})),assets:A}))}catch(e){if(!warnedQuota){warnedQuota=true;toast('자동 저장 공간이 부족해요 · 저장(⌘S)으로 파일을 남겨 주세요')}}}
 
 /* ================= selection helpers ================= */
 const selObjs=()=>doc.objects.filter(o=>sel.has(o.id));
@@ -1564,7 +1583,7 @@ $('#bZi').onclick=()=>zoomBy(1.25);$('#bZo').onclick=()=>zoomBy(0.8);$('#bFit').
 $('#bGrid').onclick=()=>{ui.grid=!ui.grid;render()};
 $('#bHelp').onclick=showHelp;
 $('#bMore').onclick=()=>{
-  const items=[['bNew','새 문서'],['bOpen','열기 (.json)'],['bSave','저장 (.json)'],['bPlan','평면도 사진 넣기'],['bFit','화면에 맞추기'],['bGrid','격자 보기 켜기/끄기'],['bHelp','단축키 · 사용법']];
+  const items=[...(CLOUD.disabled?[]:[['bAcct',CLOUD.user?'계정 · 내 조감도':'로그인 · 계정 만들기']]),['bNew','새 문서'],['bOpen','열기 (.json)'],['bSave','저장 (.json)'],['bPlan','평면도 사진 넣기'],['bFit','화면에 맞추기'],['bGrid','격자 보기 켜기/끄기'],['bHelp','단축키 · 사용법']];
   openModal(`<h2>메뉴</h2><div class="opts">${items.map(([id,t])=>`<button class="opt" data-mm="${id}" style="justify-content:flex-start;font-size:15px">${t}</button>`).join('')}</div><div class="mfoot"><button onclick="closeModal()">닫기</button></div>`);
   $('#mbox').querySelectorAll('[data-mm]').forEach(b=>b.onclick=()=>{closeModal();$('#'+b.dataset.mm).click()});
 };$('#bExport').onclick=openExport;
@@ -2030,13 +2049,218 @@ async function exportSheet(fmt,orient,x){
   const[c]=sheetCanvases(orient,x,true);const b=await toBlob(c,'image/jpeg',0.93);return saveFile(`${name}${x>1?'@x'+x:''}.jpg`,b);
 }
 
+/* ================= accounts + cloud save (Firebase) ================= */
+const FB_VER='10.14.1',ADMIN_NAME='admin',MAIL_DOMAIN='vision-jodo.app';
+const CLOUD={ready:false,disabled:false,failed:false,user:null,profile:null,fb:null,isAdmin:false,status:'',uploaded:new Set(),timers:new Map(),firstAuth:false};
+const nameKey=n=>String(n||'').trim().normalize('NFC').toLowerCase();
+const nameEmail=n=>'u'+[...new TextEncoder().encode(nameKey(n))].map(b=>b.toString(16).padStart(2,'0')).join('')+'@'+MAIL_DOMAIN;
+const fmtTime=ms=>{if(!ms)return'-';const d=new Date(ms),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`};
+const tsMs=v=>v&&typeof v.toMillis==='function'?v.toMillis():(typeof v==='number'?v:0);
+async function cloudInit(){
+  const cfg=window.VISION_FIREBASE_CONFIG;
+  if(!cfg||!cfg.apiKey){CLOUD.disabled=true;updAcct();return}
+  try{
+    const base=`https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const[A,U,F]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-firestore.js')]);
+    const app=A.initializeApp(cfg),auth=U.getAuth(app);let db;
+    try{db=F.initializeFirestore(app,{localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()})})}catch(e){db=F.getFirestore(app)}
+    CLOUD.fb={A,U,F,app,auth,db};CLOUD.ready=true;
+    U.onAuthStateChanged(auth,async u=>{
+      const first=!CLOUD.firstAuth;CLOUD.firstAuth=true;
+      if(u){CLOUD.user=u;const ok=await loadProfile();if(ok)onLogin(first)}
+      else{CLOUD.user=null;CLOUD.profile=null;CLOUD.isAdmin=false;if(first)maybeShowLogin()}
+      updAcct();
+    });
+  }catch(e){console.error(e);CLOUD.failed=true;updAcct();toast('서버에 연결하지 못했어요 · 이 기기에만 저장됩니다')}
+}
+async function loadProfile(){
+  const{F,db}=CLOUD.fb,u=CLOUD.user,ref=F.doc(db,'users',u.uid);
+  try{
+    let snap=await F.getDoc(ref);
+    if(!snap.exists()){const nm=u.displayName||'사용자';await F.setDoc(ref,{name:nm,key:nameKey(nm),createdAt:F.serverTimestamp(),lastLogin:F.serverTimestamp()});snap=await F.getDoc(ref)}
+    CLOUD.profile=snap.data()||{};
+    if(CLOUD.profile.blocked){await CLOUD.fb.U.signOut(CLOUD.fb.auth);toast('관리자가 사용을 중지한 계정이에요');return false}
+    CLOUD.isAdmin=u.email===nameEmail(ADMIN_NAME);
+    F.updateDoc(ref,{lastLogin:F.serverTimestamp()}).catch(()=>{});
+    return true;
+  }catch(e){console.error(e);toast('계정 정보를 불러오지 못했어요');return false}
+}
+function setCloudStatus(s){CLOUD.status=s;const el=$('#acctSt');if(el){el.textContent=({saving:'저장 중…',saved:'☁ 저장됨',error:'⚠ 저장 실패',offline:'오프라인'})[s]||'';el.dataset.st=s}}
+function updAcct(){
+  const b=$('#bAcct');if(!b)return;
+  if(CLOUD.disabled){b.style.display='none';$('#acctSt').style.display='none';return}
+  b.style.display='';$('#acctSt').style.display='';
+  b.innerHTML=CLOUD.user?`<span class="ai">👤</span><span class="an">${esc(CLOUD.profile?.name||CLOUD.user.displayName||'')}</span>${CLOUD.isAdmin?'<span class="adm">관리자</span>':''}`:'<span class="ai">👤</span><span class="an">로그인</span>';
+  if(!CLOUD.user)setCloudStatus(CLOUD.failed?'offline':'');
+}
+function maybeShowLogin(){try{if(localStorage.getItem('vision-offline')==='1')return}catch(_){}showLogin('login')}
+function showLogin(tab){
+  if(!CLOUD.ready){toast(CLOUD.failed?'서버에 연결할 수 없어요 · 인터넷 연결을 확인해 주세요':'서버 연결 중이에요 · 잠시 후 다시 시도해 주세요');return}
+  const su=tab==='signup';
+  openModal(`<div class="login"><img src="${LOGO_SRC}" alt="VISION" class="lg-logo"><h2>${su?'계정 만들기':'로그인'}</h2>
+    <p class="hint" style="margin:-6px 0 14px">${su?'이름과 비밀번호만 있으면 돼요. 만든 조감도가 계정에 저장되어 PC·휴대폰·태블릿 어디서든 불러올 수 있어요.':'내 계정에 저장된 조감도를 어느 기기에서든 불러옵니다.'}</p>
+    <form id="lgForm" autocomplete="on">
+      <div class="row"><label>이름</label><input type="text" id="lgName" autocomplete="username" required maxlength="30" placeholder="예: 홍길동"></div>
+      <div class="row"><label>비밀번호</label><input type="password" id="lgPw" autocomplete="${su?'new-password':'current-password'}" required minlength="6" placeholder="6자 이상"></div>
+      ${su?'<div class="row"><label>비밀번호 확인</label><input type="password" id="lgPw2" autocomplete="new-password" required minlength="6"></div>':''}
+      <div class="crow" style="margin:4px 0 12px"><label><input type="checkbox" id="lgKeep" checked> 로그인 유지</label></div>
+      <p id="lgErr" class="lg-err"></p>
+      <button type="submit" class="primary" style="width:100%;padding:11px">${su?'계정 만들기':'로그인'}</button>
+    </form>
+    <div class="lg-alt">${su?'이미 계정이 있나요? <a href="#" data-lg="login">로그인</a>':'처음이신가요? <a href="#" data-lg="signup">계정 만들기</a>'}</div>
+    <div class="lg-alt"><a href="#" data-lg="offline">로그인 없이 사용하기 (이 기기에만 저장)</a></div></div>`);
+  const M=$('#mbox');setTimeout(()=>$('#lgName').focus(),50);
+  M.querySelectorAll('[data-lg]').forEach(a=>a.onclick=e=>{e.preventDefault();const t=a.dataset.lg;
+    if(t==='offline'){try{localStorage.setItem('vision-offline','1')}catch(_){}closeModal();toast('로그인 없이 사용합니다 · 오른쪽 위 👤 로그인으로 언제든 연결할 수 있어요')}else showLogin(t)});
+  $('#lgForm').onsubmit=async e=>{e.preventDefault();const name=$('#lgName').value.trim(),pw=$('#lgPw').value,err=$('#lgErr');err.textContent='';
+    if(!name){err.textContent='이름을 입력해 주세요';return}
+    if(pw.length<6){err.textContent='비밀번호는 6자 이상이어야 해요';return}
+    if(su&&pw!==$('#lgPw2').value){err.textContent='비밀번호 확인이 일치하지 않아요';return}
+    const btn=M.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='잠시만요…';
+    try{await doAuth(su,name,pw,$('#lgKeep').checked);try{localStorage.removeItem('vision-offline')}catch(_){}closeModal()}
+    catch(ex){btn.disabled=false;btn.textContent=su?'계정 만들기':'로그인';err.textContent=authMsg(ex)}};
+}
+function authMsg(e){const c=e&&e.code||'';return({
+  'auth/email-already-in-use':'이미 사용 중인 이름이에요. 다른 이름을 쓰거나 로그인해 주세요.',
+  'auth/invalid-credential':'이름 또는 비밀번호가 맞지 않아요.','auth/wrong-password':'이름 또는 비밀번호가 맞지 않아요.','auth/user-not-found':'이름 또는 비밀번호가 맞지 않아요.',
+  'auth/invalid-login-credentials':'이름 또는 비밀번호가 맞지 않아요.','auth/weak-password':'비밀번호는 6자 이상이어야 해요.',
+  'auth/too-many-requests':'시도가 너무 많아요. 잠시 후 다시 해 주세요.','auth/network-request-failed':'인터넷 연결을 확인해 주세요.',
+  'auth/operation-not-allowed':'서버 설정이 아직 안 됐어요 (Firebase에서 이메일/비밀번호 로그인을 켜 주세요).',
+  'auth/user-disabled':'사용이 중지된 계정이에요.'}[c])||('로그인하지 못했어요 ('+(c||e.message||'오류')+')')}
+async function doAuth(signup,name,pw,keep){
+  const{U,F,auth,db}=CLOUD.fb;
+  await U.setPersistence(auth,keep?U.browserLocalPersistence:U.browserSessionPersistence);
+  const email=nameEmail(name);
+  if(signup){
+    const cr=await U.createUserWithEmailAndPassword(auth,email,pw);
+    await U.updateProfile(cr.user,{displayName:name});
+    await F.setDoc(F.doc(db,'users',cr.user.uid),{name,key:nameKey(name),createdAt:F.serverTimestamp(),lastLogin:F.serverTimestamp()});
+    toast(nameKey(name)===ADMIN_NAME?'관리자 계정을 만들었어요':'계정을 만들었어요 · 이제 작업이 자동으로 저장됩니다');
+  }else{await U.signInWithEmailAndPassword(auth,email,pw)}
+}
+function onLogin(first){
+  updAcct();toast(`${CLOUD.profile?.name||''}님, 환영합니다`);
+  // adopt any tabs the user already edited on this device
+  for(const t of tabs)if(!t.cloud&&tabEdited(t))t.cloud={uid:CLOUD.user.uid,id:uid()};
+  for(const t of tabs)if(t.cloud&&t.cloud.uid===CLOUD.user.uid)queueCloudSave(t,10);
+  showCloudList();
+}
+async function logout(){
+  if(!CLOUD.user)return;
+  for(const t of tabs)if(t.cloud)await flushCloud(t);
+  const mine=CLOUD.user.uid;
+  await CLOUD.fb.U.signOut(CLOUD.fb.auth);
+  // close account tabs on this device (privacy on shared devices)
+  stash();tabs=tabs.filter(t=>!(t.cloud));if(!tabs.length)tabs.push(mkTab(blankDoc(),true));activate(Math.min(active,tabs.length-1));autosave();
+  CLOUD.uploaded.clear();toast('로그아웃했어요');updAcct();
+}
+const tabEdited=t=>(t===tabs[active]?hi:t.hi)>0||t.hist.length>1;
+function cloudOnCommit(){
+  if(!CLOUD.user)return;const t=tabs[active];if(!t)return;
+  if(!t.cloud){if(hi<1)return;t.cloud={uid:CLOUD.user.uid,id:uid()}}
+  queueCloudSave(t);
+}
+function queueCloudSave(t,delay=1500){
+  if(!CLOUD.user||!t.cloud)return;if(t.cloud.uid!==CLOUD.user.uid&&!CLOUD.isAdmin)return;clearTimeout(CLOUD.timers.get(t.id));setCloudStatus('saving');
+  CLOUD.timers.set(t.id,setTimeout(()=>cloudSave(t),delay));
+}
+async function flushCloud(t){if(CLOUD.timers.has(t.id)){clearTimeout(CLOUD.timers.get(t.id));CLOUD.timers.delete(t.id);await cloudSave(t)}}
+async function shrinkAsset(a){
+  if(a.src.length<=900000)return a;
+  const img=await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=a.src});if(!img)return a;
+  let scale=1,q=0.85,src=a.src,w=a.w,h=a.h;
+  for(let k=0;k<8&&src.length>900000;k++){scale*=k%2?0.85:1;q=Math.max(0.5,q-0.07);w=Math.round(img.naturalWidth*Math.min(1,1800/Math.max(img.naturalWidth,img.naturalHeight))*scale);h=Math.round(w*img.naturalHeight/img.naturalWidth);
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);src=c.toDataURL('image/jpeg',q)}
+  return{src,w,h};
+}
+async function cloudSave(t){
+  CLOUD.timers.delete(t.id);if(!CLOUD.user||!t.cloud)return;
+  const{F,db}=CLOUD.fb,d=t===tabs[active]?doc:t.doc,snapAt=t===tabs[active]?hist[hi]:t.hist[t.hi],u=t.cloud.uid;
+  try{
+    const used=usedAssets(d);
+    for(const[aid,a]of Object.entries(used)){if(aid==='logo'||CLOUD.uploaded.has(u+'/'+aid))continue;
+      const s=await shrinkAsset(a);if(s!==a){assets[aid]=s}
+      await F.setDoc(F.doc(db,'users',u,'assets',aid),{src:s.src,w:s.w,h:s.h});CLOUD.uploaded.add(u+'/'+aid)}
+    const data=JSON.stringify(d);
+    await F.setDoc(F.doc(db,'users',u,'docs',t.cloud.id),{title:d.title||'제목 없음',data,assets:Object.keys(used).filter(k=>k!=='logo'),cams:d.cams.length,updatedAt:F.serverTimestamp(),clientUpdated:Date.now(),by:CLOUD.profile?.name||''});
+    t.saved=snapAt;tabsKey='';renderTabs();setCloudStatus(navigator.onLine===false?'offline':'saved');
+  }catch(e){console.error(e);setCloudStatus('error');if(String(e.code).includes('permission'))toast('저장 권한이 없어요 (차단된 계정이거나 서버 규칙 문제)');}
+}
+async function openCloudDoc(u,id,ownerName){
+  const ex=tabs.findIndex(t=>t.cloud&&t.cloud.uid===u&&t.cloud.id===id);if(ex>=0){switchTab(ex);return}
+  const{F,db}=CLOUD.fb;$('#busy').classList.add('on');$('#busy').textContent='불러오는 중…';
+  try{
+    const snap=await F.getDoc(F.doc(db,'users',u,'docs',id));if(!snap.exists()){toast('문서를 찾을 수 없어요');return}
+    const v=snap.data(),d=normalize(JSON.parse(v.data));
+    for(const aid of v.assets||[]){if(assets[aid])continue;const as=await F.getDoc(F.doc(db,'users',u,'assets',aid));if(as.exists())assets[aid]=as.data();CLOUD.uploaded.add(u+'/'+aid)}
+    addTab(d,true);tabs[active].cloud={uid:u,id,owner:ownerName||null};tabsKey='';renderTabs();
+    if(ownerName)toast(`${ownerName}님의 조감도를 열었어요 · 수정하면 그 계정에 저장됩니다`);
+  }catch(e){console.error(e);toast('불러오지 못했어요')}finally{$('#busy').classList.remove('on');$('#busy').textContent='내보내는 중…'}
+}
+async function listDocs(u){const{F,db}=CLOUD.fb;const q=await F.getDocs(F.query(F.collection(db,'users',u,'docs'),F.orderBy('clientUpdated','desc')));return q.docs.map(x=>({id:x.id,...x.data()}))}
+async function deleteDoc(u,id){const{F,db}=CLOUD.fb;await F.deleteDoc(F.doc(db,'users',u,'docs',id));const i=tabs.findIndex(t=>t.cloud&&t.cloud.uid===u&&t.cloud.id===id);if(i>=0)delete tabs[i].cloud}
+function docRows(list,u,owner){
+  if(!list.length)return'<p class="hint" style="padding:14px 4px;margin:0">저장된 조감도가 없어요. 새로 만들면 자동으로 여기에 저장돼요.</p>';
+  return list.map(d=>`<div class="cdoc" data-id="${d.id}"><div class="cd-main" data-open="${d.id}"><b>${esc(d.title||'제목 없음')}</b><small>${fmtTime(d.clientUpdated||tsMs(d.updatedAt))} · 캠 ${d.cams??'-'}대${d.by&&owner?' · '+esc(d.by):''}</small></div>
+    <button data-open="${d.id}">열기</button><button class="cd-del" data-del="${d.id}" title="삭제">삭제</button></div>`).join('');
+}
+async function showCloudList(){
+  if(!CLOUD.user){showLogin('login');return}
+  openModal(`<h2>내 조감도 <small style="color:var(--muted);font-weight:400;font-size:12px">${esc(CLOUD.profile?.name||'')}</small></h2><div id="cdList" class="cdlist"><p class="hint">불러오는 중…</p></div>
+    <div class="mfoot"><button id="cdNew" style="margin-right:auto">＋ 새 조감도</button><button onclick="closeModal()">닫기</button></div>`);
+  $('#cdNew').onclick=()=>{closeModal();newDoc()};
+  const u=CLOUD.user.uid,box=$('#cdList');
+  try{const list=await listDocs(u);box.innerHTML=docRows(list,u,null);wireDocRows(box,u,null,showCloudList)}
+  catch(e){console.error(e);box.innerHTML='<p class="lg-err">목록을 불러오지 못했어요.</p>'}
+}
+function wireDocRows(box,u,owner,refresh){
+  box.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{closeModal();openCloudDoc(u,b.dataset.open,owner)});
+  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='정말 삭제?';b.classList.add('armed');setTimeout(()=>{if(b.isConnected){b.dataset.armed='';b.textContent='삭제';b.classList.remove('armed')}},3000);return}
+    try{await deleteDoc(u,b.dataset.del);toast('삭제했어요');refresh()}catch(e){toast('삭제하지 못했어요')}});
+}
+function showAcctMenu(){
+  if(!CLOUD.user){showLogin('login');return}
+  openModal(`<h2>👤 ${esc(CLOUD.profile?.name||'')}${CLOUD.isAdmin?' <span class="adm">관리자</span>':''}</h2><div class="opts">
+    <button class="opt" data-am="list" style="font-size:15px">내 조감도 목록</button>
+    ${CLOUD.isAdmin?'<button class="opt" data-am="admin" style="font-size:15px">관리자 페이지 · 전체 계정 관리</button>':''}
+    <button class="opt" data-am="logout" style="font-size:15px">로그아웃</button></div>
+    <p class="hint" style="margin:12px 0 0">작업은 수정할 때마다 자동으로 계정에 저장돼요 (상단의 ☁ 표시).</p>
+    <div class="mfoot"><button onclick="closeModal()">닫기</button></div>`);
+  $('#mbox').querySelectorAll('[data-am]').forEach(b=>b.onclick=()=>{const a=b.dataset.am;closeModal();if(a==='list')showCloudList();else if(a==='admin')showAdmin();else logout()});
+}
+async function showAdmin(){
+  if(!CLOUD.isAdmin)return;const{F,db}=CLOUD.fb;
+  openModal(`<h2>관리자 페이지</h2><div id="adList" class="cdlist"><p class="hint">불러오는 중…</p></div>
+    <p class="hint" style="margin:10px 0 0">비밀번호를 잊은 크루원은 새 이름으로 계정을 만들고, 관리자가 이전 계정의 조감도를 열어 옮겨 줄 수 있어요. 계정을 아예 지우려면 Firebase 콘솔 → Authentication에서 삭제합니다.</p>
+    <div class="mfoot"><button onclick="closeModal()">닫기</button></div>`);
+  const box=$('#adList');
+  try{
+    const qs=await F.getDocs(F.query(F.collection(db,'users'),F.orderBy('createdAt','desc')));
+    const users=qs.docs.map(x=>({uid:x.id,...x.data()}));
+    box.innerHTML=users.map(u=>`<div class="cuser" data-uid="${u.uid}"><div class="cd-main"><b>${esc(u.name||'?')}${u.key===ADMIN_NAME?' <span class="adm">관리자</span>':''}${u.blocked?' <span class="blk">차단됨</span>':''}</b>
+      <small>가입 ${fmtTime(tsMs(u.createdAt))} · 마지막 접속 ${fmtTime(tsMs(u.lastLogin))}</small></div>
+      <button data-docs="${u.uid}">조감도 보기</button>${u.key===ADMIN_NAME?'':`<button data-blk="${u.uid}" class="${u.blocked?'':'cd-del'}">${u.blocked?'차단 해제':'사용 중지'}</button>`}
+      <div class="cu-docs" id="cu-${u.uid}"></div></div>`).join('')||'<p class="hint">계정이 없어요.</p>';
+    box.querySelectorAll('[data-docs]').forEach(b=>b.onclick=async()=>{const u=users.find(x=>x.uid===b.dataset.docs),el=$('#cu-'+u.uid);
+      if(el.innerHTML){el.innerHTML='';return}el.innerHTML='<p class="hint">불러오는 중…</p>';
+      try{const list=await listDocs(u.uid);el.innerHTML=docRows(list,u.uid,u.name);wireDocRows(el,u.uid,u.uid===CLOUD.user.uid?null:u.name,()=>{el.innerHTML='';b.click()})}catch(e){el.innerHTML='<p class="lg-err">불러오지 못했어요</p>'}});
+    box.querySelectorAll('[data-blk]').forEach(b=>b.onclick=async()=>{const u=users.find(x=>x.uid===b.dataset.blk);
+      try{await F.updateDoc(F.doc(db,'users',u.uid),{blocked:!u.blocked});toast(u.blocked?`${u.name} 차단을 해제했어요`:`${u.name} 계정을 사용 중지했어요`);showAdmin()}catch(e){toast('변경하지 못했어요')}});
+  }catch(e){console.error(e);box.innerHTML='<p class="lg-err">계정 목록을 불러오지 못했어요 (서버 규칙을 확인해 주세요).</p>'}
+}
+window.addEventListener('online',()=>{if(CLOUD.user){for(const t of tabs)if(t.cloud&&!isDirtyTab(t))continue;setCloudStatus('saved')}});
+window.addEventListener('offline',()=>{if(CLOUD.user)setCloudStatus('offline')});
+const isDirtyTab=t=>{const i=tabs.indexOf(t);return i>=0&&isDirty(i)};
+
+$('#bAcct').onclick=showAcctMenu;$('#acctSt').onclick=()=>CLOUD.user?showCloudList():showLogin('login');
 /* ================= boot ================= */
 (function boot(){
   resetAssets();
   // previous session: unsaved docs go to recovery; app always starts with a fresh document
   try{
     let prev=null;const v2=localStorage.getItem('vision-jodo-v2'),v1=localStorage.getItem('vision-jodo-v1');
-    if(v2){const p=JSON.parse(v2);prev={docs:(p.tabs||[]).filter(t=>t.dirty).map(t=>t.doc),assets:p.assets||{}}}
+    if(v2){const p=JSON.parse(v2);const dt=(p.tabs||[]).filter(t=>t.dirty);prev={docs:dt.map(t=>t.doc),clouds:dt.map(t=>t.cloud||null),assets:p.assets||{}}}
     else if(v1){const p=JSON.parse(v1);prev={docs:[p.doc],assets:p.assets||{}}}
     if(prev&&prev.docs.length)localStorage.setItem('vision-jodo-recover',JSON.stringify(prev));
     if(v1)localStorage.removeItem('vision-jodo-v1');
@@ -2045,6 +2269,7 @@ async function exportSheet(fmt,orient,x){
   buildLib();setTool('select');xlWire();document.body.dataset.mode='plan';
   tabs=[mkTab(blankDoc(),true)];activate(0);autosave();
   ensureFonts().then(sched);
+  cloudInit();
 })();
 </script>
 </body>
