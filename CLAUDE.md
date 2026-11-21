@@ -27,7 +27,7 @@ GitHub Pages로 배포: https://janyuck.github.io/vision-jodo/
 - 단축키는 조감도=일러스트레이터, 장비 리스트=엑셀 기준.
 
 ## 계정 · 클라우드 저장 (Firebase)
-- `firebase-config.js` — Firebase 웹 설정. `null`이면 로그인 기능이 숨겨지고 기기 저장 모드로만 동작.
+- `firebase-config.js` — Firebase 웹 설정 (프로젝트 ID: vision-jodo-f7ac7, 서울 리전 Firestore). `null`이면 로그인 기능이 숨겨지고 기기 저장 모드로만 동작.
 - `firestore.rules` — Firestore 보안 규칙 (Firebase 콘솔 → Firestore → 규칙에 붙여넣기). 관리자 = 이름 `admin`.
 - 이름+비밀번호 로그인은 Firebase Auth 이메일/비밀번호를 사용: 이름을 UTF-8 hex로 바꿔 `u<hex>@vision-jodo.app` 이메일로 씀.
 - 데이터: `users/{uid}` (이름·가입일·차단 여부), `users/{uid}/docs/{id}` (조감도 JSON), `users/{uid}/assets/{id}` (평면도 사진, 1MB 이하로 자동 압축).
