@@ -301,7 +301,8 @@ table.xl{border-collapse:separate;border-spacing:0;table-layout:fixed;user-selec
         <select id="dCols" title="목록 열 수"><option value="0">열: 자동</option><option value="1">1열</option><option value="2">2열</option><option value="3">3열</option></select>
       </div>
       <div class="crow" style="margin-bottom:6px"><label><input type="checkbox" id="dBox"> 장비 목록을 칸으로 구분</label></div>
-      <div class="crow" style="margin-bottom:8px"><label><input type="checkbox" id="dCat"> 조감도 장비 목록에 카테고리 표시</label></div>
+      <div class="crow" style="margin-bottom:6px"><label><input type="checkbox" id="dCat"> 조감도 장비 목록에 카테고리 표시</label></div>
+      <div class="crow" style="margin-bottom:8px"><label><input type="checkbox" id="dLBox"> 카메라 라벨에 박스 표시</label></div>
       <div class="row"><label>캠 라벨</label><select id="dLab" title="평면도 카메라 라벨 형식"><option value="short">Cam 1 / 이름 ↵ (역할)</option><option value="full">Cam 1 Main / 이름</option><option value="2line">Cam 1 Main ↵ 이름</option></select></div>
       <div class="row" style="margin-bottom:0"><label>글자 크기</label><select id="dScale"><option value="0">자동 맞춤</option><option value="0.6">60%</option><option value="0.7">70%</option><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.2">120%</option></select></div>
     </div>
@@ -547,7 +548,7 @@ function exampleDoc(){
     K('camStd',1023,244,3),
     K('camTele',1090,270,5,'',{rot:-35}),
     K('camTele',830,604,0,'(Main Tricam)'),
-    K('camStd',866,620,6));
+    K('camStd',902,606,6));
   return d;
 }
 function blankDoc(){
@@ -611,7 +612,10 @@ function labelInfo(o){
   const lines=txt.split('\n'),ls=o.ls||6.5,t=(o.rot||0)*Math.PI/180;
   const hy=(Math.abs(o.w*Math.sin(t))+Math.abs(o.h*Math.cos(t)))/2;
   let w=0;for(const l of lines)w=Math.max(w,tw(l,ls,FONTS.gothic,500));
-  const lh=ls*1.2;return{lines,ls,lh,cx:o.x+o.w/2,top:o.y+o.h/2+hy+ls*0.35,w,h:lines.length*lh};
+  const lh=ls*1.2,boxed=doc.labelBox!==false&&SYM[o.kind]&&SYM[o.kind].cat==='cam',top=o.y+o.h/2+hy+ls*(boxed?0.7:0.35),h=lines.length*lh;
+  const L={lines,ls,lh,cx:o.x+o.w/2,top,w,h};
+  if(boxed){const px=ls*0.6,py=ls*0.28;L.box={x:L.cx-w/2-px,y:top-py,w:w+px*2,h:h+py*2,r:ls*0.45,sw:Math.max(0.35,ls*0.08)}}
+  return L;
 }
 function aabb(o,withLabel=true){
   if(o.type==='line'){const x=Math.min(o.x1,o.x2),y=Math.min(o.y1,o.y2);return{x,y,w:Math.abs(o.x2-o.x1),h:Math.abs(o.y2-o.y1)}}
@@ -635,7 +639,7 @@ function hit(o,p,tol){
   }
   if(inside)return true;
   const L=labelInfo(o);
-  return !!L&&Math.abs(p.x-L.cx)<=L.w/2+tol&&p.y>=L.top-tol&&p.y<=L.top+L.h+tol;
+  return !!L&&Math.abs(p.x-L.cx)<=L.w/2+tol+(L.box?L.box.w/2-L.w/2:0)&&p.y>=L.top-tol-(L.box?L.top-L.box.y:0)&&p.y<=L.top+L.h+tol+(L.box?L.top-L.box.y:0);
 }
 function moveObj(o,dx,dy){if(o.type==='line'){o.x1+=dx;o.x2+=dx;o.y1+=dy;o.y2+=dy}else{o.x+=dx;o.y+=dy}}
 function arrowGeom(o){
@@ -724,7 +728,7 @@ function svgObj(o){
     const S=SYM[o.kind];if(!S)return'';
     const inner=S.p.map(p=>`<path d="${p.d}" fill="${resC(p.f,o.color)}"${p.s?` stroke="${resC(p.s,o.color)}" stroke-width="${p.sw}"`:''}/>`).join('');
     let lab='';const L=labelInfo(o);
-    if(L)lab=svgLines(L.lines,L.cx,L.top,L.lh,L.ls,FONTS.gothic,500,o.lc||'#111','middle');
+    if(L)lab=(L.box?`<rect x="${L.box.x}" y="${L.box.y}" width="${L.box.w}" height="${L.box.h}" rx="${L.box.r}" fill="#ffffff" stroke="#3a3a3c" stroke-width="${L.box.sw}"/>`:'')+svgLines(L.lines,L.cx,L.top,L.lh,L.ls,FONTS.gothic,500,o.lc||'#111','middle');
     return `<g${op}><g transform="translate(${o.x} ${o.y}) rotate(${o.rot||0} ${o.w/2} ${o.h/2}) scale(${o.w/S.vw} ${o.h/S.vh})">${inner}</g>${lab}</g>`;
   }
   return'';
@@ -849,7 +853,8 @@ async function drawObj(ctx,o){
     if(S){ctx.save();ctx.translate(o.x+o.w/2,o.y+o.h/2);ctx.rotate((o.rot||0)*Math.PI/180);ctx.translate(-o.w/2,-o.h/2);ctx.scale(o.w/S.vw,o.h/S.vh);
       for(const p of S.p){const P=path2d(p.d);const f=resC(p.f,o.color);if(f!=='none'){ctx.fillStyle=f;ctx.fill(P)}if(p.s){ctx.strokeStyle=resC(p.s,o.color);ctx.lineWidth=p.sw;ctx.stroke(P)}}
       ctx.restore();
-      const L=labelInfo(o);if(L)cLines(ctx,L.lines,L.cx,L.top,L.lh,L.ls,FONTS.gothic,500,o.lc||'#111','center');}
+      const L=labelInfo(o);if(L){if(L.box){const P=path2d(rr(L.box.x,L.box.y,L.box.w,L.box.h,L.box.r));ctx.fillStyle='#ffffff';ctx.fill(P);ctx.strokeStyle='#3a3a3c';ctx.lineWidth=L.box.sw;ctx.stroke(P)}
+        cLines(ctx,L.lines,L.cx,L.top,L.lh,L.ls,FONTS.gothic,500,o.lc||'#111','center')}}
   }
   ctx.restore();
 }
@@ -1345,12 +1350,13 @@ $('#addCam').onclick=()=>{const no=nextCamNo();doc.cams.push(cam(no==='etc'?'':`
   const t=camsEl.querySelector(`.cam[data-ci="${doc.cams.length-1}"] .cam-title`);t.focus();t.select()};
 
 /* doc settings */
-function syncDocFields(){$('#dTitle').value=doc.title;$('#dSub').value=doc.subtitle||'';$('#dFont').value=doc.fontStyle;$('#dLab').value=doc.labelFmt||'short';$('#dCat').checked=doc.showCat!==false;$('#dBox').checked=doc.listBox!==false;$('#dCols').value=String(doc.listCfg.cols||0);$('#dScale').value=String(doc.listCfg.scale||0);
+function syncDocFields(){$('#dTitle').value=doc.title;$('#dSub').value=doc.subtitle||'';$('#dFont').value=doc.fontStyle;$('#dLab').value=doc.labelFmt||'short';$('#dCat').checked=doc.showCat!==false;$('#dLBox').checked=doc.labelBox!==false;$('#dBox').checked=doc.listBox!==false;$('#dCols').value=String(doc.listCfg.cols||0);$('#dScale').value=String(doc.listCfg.scale||0);
   $('#wShow').checked=doc.wm.show;$('#wSize').value=doc.wm.w;$('#wOp').value=doc.wm.opacity}
 $('#dTitle').oninput=e=>{doc.title=e.target.value;sched()};$('#dSub').oninput=e=>{doc.subtitle=e.target.value;sched()};
 ['#dTitle','#dSub'].forEach(s=>$(s).onchange=commit);
 $('#dBox').onchange=e=>{doc.listBox=e.target.checked;commit();render()};
 $('#dCat').onchange=e=>{doc.showCat=e.target.checked;commit();render()};
+$('#dLBox').onchange=e=>{doc.labelBox=e.target.checked;commit();render()};
 $('#dLab').onchange=e=>{doc.labelFmt=e.target.value;commit();buildInspector();render()};
 $('#dFont').onchange=e=>{doc.fontStyle=e.target.value;commit();render()};
 $('#dCols').onchange=e=>{doc.listCfg.cols=+e.target.value;commit();render()};
