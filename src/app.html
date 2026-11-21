@@ -940,7 +940,7 @@ async function saveProject(){
 }
 function loadProject(data){
   if(!data||!data.doc||!Array.isArray(data.doc.objects))throw new Error('형식 오류');
-  Object.assign(assets,data.assets||{});addTab(normalize(data.doc),true);
+  Object.assign(assets,data.assets||{});addTab(normalize(data.doc),true);if(typeof cloudAdopt==='function')cloudAdopt(tabs[active]);
 }
 /* ================= tabs ================= */
 function stash(){const t=tabs[active];if(!t)return;t.doc=doc;t.hist=hist;t.hi=hi;t.view={...view};t.sel=new Set(sel)}
@@ -986,7 +986,7 @@ $('#tabs').addEventListener('click',e=>{
   const c=e.target.closest('[data-close]');if(c){e.stopPropagation();closeTab(+c.dataset.close);return}
   if(e.target.closest('[data-rdis]')){recover=null;try{localStorage.removeItem('vision-jodo-recover')}catch(_){}tabsKey='';renderTabs();return}
   if(e.target.closest('.trec')){const r=recover;recover=null;try{localStorage.removeItem('vision-jodo-recover')}catch(_){}
-    Object.assign(assets,r.assets||{});r.docs.forEach((d,i)=>{addTab(normalize(d),false);const c=(r.clouds||[])[i];if(c)tabs[active].cloud=c});toast(`${r.docs.length}개 문서를 복구했습니다`);return}
+    Object.assign(assets,r.assets||{});r.docs.forEach((d,i)=>{addTab(normalize(d),false);const c=(r.clouds||[])[i],t=tabs[active];if(c){t.cloud=c;queueCloudSave(t,10)}else cloudAdopt(t)});toast(`${r.docs.length}개 문서를 복구했습니다`);return}
   if(e.target.closest('.tadd')){newDoc();return}
   const t=e.target.closest('.tab');if(t)switchTab(+t.dataset.i);
 });
@@ -1552,7 +1552,7 @@ function newDoc(){
     <label class="opt"><input type="radio" name="nt" value="ex"><div><b>기본 예배당 템플릿</b><small>무대·좌석·카메라 7대가 배치된 기본 구성으로 시작</small></div></label></div>
     <p class="hint" style="margin:12px 0 0">새 탭으로 열립니다. 지금 작업 중인 문서는 그대로 남아 있어요.</p>
     <div class="mfoot"><button onclick="closeModal()">취소</button><button class="primary" id="doNew">만들기</button></div>`);
-  $('#doNew').onclick=()=>{const t=$('#mbox [name=nt]:checked').value;closeModal();addTab(t==='ex'?exampleDoc():blankDoc(),true)};
+  $('#doNew').onclick=()=>{const t=$('#mbox [name=nt]:checked').value;closeModal();addTab(t==='ex'?exampleDoc():blankDoc(),true);cloudAdopt(tabs[active])};
 }
 function showHelp(){
   const k=(a,b)=>`<kbd>${a}</kbd><span>${b}</span>`;
@@ -2155,6 +2155,7 @@ async function logout(){
   CLOUD.uploaded.clear();toast('로그아웃했어요');updAcct();
 }
 const tabEdited=t=>(t===tabs[active]?hi:t.hi)>0||t.hist.length>1;
+function cloudAdopt(t){if(!CLOUD.user||!t||t.cloud)return;t.cloud={uid:CLOUD.user.uid,id:uid()};queueCloudSave(t,10);toast('새 조감도를 내 계정에 저장했어요')}
 function cloudOnCommit(){
   if(!CLOUD.user)return;const t=tabs[active];if(!t)return;
   if(!t.cloud){if(hi<1)return;t.cloud={uid:CLOUD.user.uid,id:uid()}}
