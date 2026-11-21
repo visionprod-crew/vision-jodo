@@ -72,7 +72,8 @@ input[type=checkbox]{accent-color:var(--acc)}
 /* cams */
 .cam{background:var(--panel2);border:1px solid var(--line);border-radius:9px;margin-bottom:10px;transition:border-color .15s}
 .cam.hl{border-color:var(--acc)}
-.cam-head{display:grid;grid-template-columns:1fr 104px;gap:6px;padding:9px 9px 7px}
+.cam-head{display:grid;grid-template-columns:108px 1fr 96px;gap:6px;padding:9px 9px 7px}
+.cam-no{font-weight:700;color:var(--acc2);padding:5px 4px}
 .cam-title{font-weight:700}
 .cam-op{color:var(--acc2)}
 .items{list-style:none;margin:0;padding:0 9px}
@@ -191,7 +192,7 @@ html,body{overscroll-behavior:none}
   #left,#right{left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));max-height:62vh;border-radius:16px 16px 0 0;border-bottom:0}
   .lib{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
   .items li{grid-template-columns:16px 96px 1fr 30px}
-  .cam-head{grid-template-columns:1fr 112px}
+  .cam-head{grid-template-columns:100px 1fr 104px}
   .mbox{padding:18px}
   #tools{flex-direction:row;top:44px;left:50%;transform:translateX(-50%);padding:4px;gap:2px}
   #tools .tsep,#tools [data-tool=hand],#tools [data-tool=zoom]{display:none}
@@ -482,7 +483,13 @@ function guessCat(t){const s=String(t||'').toLowerCase();if(!s.trim())return nul
   return null}
 const mkItem=(t='',c,auto=true)=>({t:String(t),c:c||guessCat(t)||'ETC',a:auto});
 const normItem=x=>typeof x==='string'?mkItem(x):{t:String(x&&x.t||''),c:CATS.includes(x&&x.c)?x.c:'ETC',a:!!(x&&x.a)};
-const cam=(title,operator,items)=>({id:uid(),title,operator,items:items.map(normItem)});
+function parseCamTitle(t){t=String(t||'').trim();let m=t.match(/^cam\s*(\d+)\s*(.*)$/i);if(m&&+m[1]>=1&&+m[1]<=20)return{no:String(+m[1]),role:m[2]};
+  m=t.match(/^photo\s*cam\s*(.*)$/i);if(m)return{no:'photo',role:m[1]};return{no:'etc',role:t}}
+function camTitle(c){c.title=c.no==='etc'?(c.role||''):(c.no==='photo'?'Photo Cam':`Cam ${c.no}`)+(c.role?' '+c.role:'');return c.title}
+function nextCamNo(){const used=new Set(doc.cams.map(c=>c.no));for(let i=1;i<=20;i++)if(!used.has(String(i)))return String(i);return'etc'}
+const CAM_OPTS=[...Array.from({length:20},(_,i)=>[String(i+1),'Cam '+(i+1)]),['photo','Photo Cam'],['etc','기타 (직접 입력)']];
+const camNoSel=(c,attrs)=>`<select ${attrs}>${CAM_OPTS.map(([v,n])=>`<option value="${v}"${c.no===v?' selected':''}>${n}</option>`).join('')}</select>`;
+const cam=(title,operator,items)=>{const c={id:uid(),title,operator,items:items.map(normItem),...parseCamTitle(title)};camTitle(c);return c};
 const PRESETS={
   seat:{name:'좌석 구역',icon:'<rect x="8" y="2" width="30" height="30" fill="#8B6244" stroke="#111" stroke-width="1.5"/>',make:(cx,cy)=>R(cx-47.5,cy-98.5,95,197,{fill:'#8B6244',name:'좌석 구역'})},
   led:{name:'LED 스크린',icon:'<rect x="3" y="12" width="40" height="10" fill="#fff" stroke="#111" stroke-width="1.5"/><text x="23" y="20" font-size="7" text-anchor="middle" fill="#111" font-family="sans-serif">LED</text>',make:(cx,cy)=>R(cx-88.5,cy-10.5,177,21,{text:'LED',name:'LED 스크린'})},
@@ -948,7 +955,8 @@ $('#tabs').addEventListener('click',e=>{
 $('#tabs').addEventListener('auxclick',e=>{if(e.button===1){const t=e.target.closest('.tab');if(t){e.preventDefault();closeTab(+t.dataset.i)}}});
 $('#tabs').addEventListener('dblclick',e=>{if(e.target.id==='tabs')newDoc()});
 function normalize(d){
-  d.cams=(d.cams||[]).map(c=>({id:c.id||uid(),title:c.title||'',operator:c.operator||'',items:Array.isArray(c.items)?c.items.map(normItem):[]}));
+  d.cams=(d.cams||[]).map(c=>{const x={id:c.id||uid(),title:c.title||'',operator:c.operator||'',items:Array.isArray(c.items)?c.items.map(normItem):[]};
+    Object.assign(x,c.no?{no:String(c.no),role:c.role||''}:parseCamTitle(x.title));camTitle(x);return x});
   ensureSheet(d);if(d.showCat===undefined)d.showCat=true;if(d.listBox===undefined)d.listBox=true;
   d.listCfg=d.listCfg||{cols:0,scale:0};d.wm=Object.assign({show:true,w:150,opacity:1,asset:'logo'},d.wm||{});
   d.fontStyle=d.fontStyle||'vision';d.title=d.title??'';d.subtitle=d.subtitle??'';d.labelFmt=d.labelFmt||'short';
@@ -1260,7 +1268,7 @@ window.addEventListener('blur',()=>{space=false;updCursor()});
 const camsEl=$('#cams');
 function renderCams(){
   camsEl.innerHTML=doc.cams.map((c,ci)=>`<div class="cam${hlCam===ci?' hl':''}" data-ci="${ci}">
-  <div class="cam-head"><input type="text" class="cam-title" data-f="title" value="${esc(c.title)}" placeholder="캠 이름 (예: Cam 1 Main)"><input type="text" class="cam-op" data-f="operator" value="${esc(c.operator)}" placeholder="오퍼레이터"></div>
+  <div class="cam-head">${camNoSel(c,'class="cam-no" data-f="no" title="카메라 번호"')}<input type="text" class="cam-title" data-f="role" value="${esc(c.role)}" placeholder="${c.no==='etc'?'캠 이름':'역할 (예: Main)'}"><input type="text" class="cam-op" data-f="operator" value="${esc(c.operator)}" placeholder="오퍼레이터"></div>
   <div class="cam-link"></div>
   <ul class="items">${c.items.map((it,ii)=>`<li data-ii="${ii}"><span class="h" draggable="true" title="드래그해서 순서 변경">⋮⋮</span><select class="cat" style="--cc:${CATC[it.c]}" title="카테고리">${CATS.map(k=>`<option${k===it.c?' selected':''}>${k}</option>`).join('')}</select><input type="text" class="item" value="${esc(it.t)}" placeholder="장비명"><button class="ib x" data-act="delitem" title="장비 삭제">✕</button></li>`).join('')}</ul>
   <div class="cam-foot"><button class="add-item" data-act="additem">+ 장비 추가</button>
@@ -1285,7 +1293,8 @@ function refreshHL(fromSel){
   if(changed&&fromSel&&ci!==null&&focusCi===null)scrollCam(ci);sched();
 }
 camsEl.addEventListener('input',e=>{const t=e.target,{ci,ii}=ctxOf(t);if(ci<0)return;const c=doc.cams[ci];
-  if(t.dataset.f){c[t.dataset.f]=t.value;const so=selObjs()[0];if(so&&so.camId===c.id){const f=insp.querySelector(`[data-t="camf"][data-f="${t.dataset.f}"]`);if(f)f.value=t.value}}
+  if(t.dataset.f){c[t.dataset.f]=t.value;if(t.dataset.f==='no'||t.dataset.f==='role'){camTitle(c);if(t.dataset.f==='no'){const r=t.parentElement.querySelector('.cam-title');r.placeholder=c.no==='etc'?'캠 이름':'역할 (예: Main)'}}
+    const so=selObjs()[0];if(so&&so.camId===c.id){const f=insp.querySelector(`[data-t="camf"][data-f="${t.dataset.f}"]`);if(f)f.value=t.value}}
   else if(t.classList.contains('item')){const it=c.items[ii];it.t=t.value;if(it.a){const g=guessCat(t.value);if(g&&g!==it.c){it.c=g;const sl=t.parentElement.querySelector('.cat');sl.value=g;sl.style.setProperty('--cc',CATC[g])}}}
   else if(t.classList.contains('cat')){const it=c.items[ii];it.c=t.value;it.a=false;t.style.setProperty('--cc',CATC[t.value])}sched()});
 camsEl.addEventListener('change',()=>commit());
@@ -1297,7 +1306,7 @@ camsEl.addEventListener('click',e=>{
   else if(a==='delitem'){c.items.splice(ii,1);renderCams();commit();render()}
   else if(a==='up'&&ci>0){[doc.cams[ci-1],doc.cams[ci]]=[c,doc.cams[ci-1]];renderCams();commit();render()}
   else if(a==='down'&&ci<doc.cams.length-1){[doc.cams[ci+1],doc.cams[ci]]=[c,doc.cams[ci+1]];renderCams();commit();render()}
-  else if(a==='dup'){const n=JSON.parse(JSON.stringify(c));n.id=uid();doc.cams.splice(ci+1,0,n);renderCams();commit();render()}
+  else if(a==='dup'){const n=JSON.parse(JSON.stringify(c));n.id=uid();if(n.no!=='etc'&&n.no!=='photo'){n.no=nextCamNo();camTitle(n)}doc.cams.splice(ci+1,0,n);renderCams();commit();render()}
   else if(a==='place'){const o=placeCam(ci);setTool('select');sel=new Set([o.id]);commit();buildInspector();buildLayers();refreshHL(true);render();toast(`${c.title||'캠'} 카메라를 평면도에 배치했습니다 · 드래그해서 위치를 옮기세요`)}
   else if(a==='locate'){const L=linkedSyms(c.id).filter(o=>!o.locked&&!o.hidden);if(L.length)setSel(new Set(L.map(o=>o.id)));else toast('잠기거나 숨겨진 카메라예요')}
   else if(a==='delcam'){for(const o of linkedSyms(c.id)){o.label=labelText(o);delete o.camId}doc.cams.splice(ci,1);hlCam=null;renderCams();commit();render();toast('캠을 삭제했습니다 · ⌘Z로 되돌리기')}
@@ -1327,7 +1336,7 @@ camsEl.addEventListener('drop',e=>{if(!dItem)return;e.preventDefault();e.stopPro
 camsEl.addEventListener('dragend',()=>{dItem=null;camsEl.querySelectorAll('.over').forEach(x=>x.classList.remove('over'))});
 $('#placeAll').onclick=()=>{const un=doc.cams.map((c,i)=>i).filter(i=>!linkedSyms(doc.cams[i].id).length);if(!un.length){toast('모든 캠이 이미 평면도에 있어요');return}
   const add=un.map((i,n)=>placeCam(i,n));setTool('select');sel=new Set(add.map(o=>o.id));commit();buildInspector();buildLayers();render();toast(`${add.length}대를 평면도 가운데에 배치했습니다 · 위치를 옮겨 주세요`)};
-$('#addCam').onclick=()=>{const n=doc.cams.length+1;doc.cams.push(cam(`Cam ${n}`,'',[mkItem('','Body')]));renderCams();commit();render();
+$('#addCam').onclick=()=>{const no=nextCamNo();doc.cams.push(cam(no==='etc'?'':`Cam ${no}`,'',[mkItem('','Body')]));renderCams();commit();render();
   const t=camsEl.querySelector(`.cam[data-ci="${doc.cams.length-1}"] .cam-title`);t.focus();t.select()};
 
 /* doc settings */
@@ -1386,7 +1395,8 @@ function buildInspector(){
     if(cat==='cam'&&!multi){
       h+=`<div class="${lc?'linkbox':''}"><div class="row"><label>연결된 캠</label><select data-t="camlink"><option value="">연결 안 함</option>${doc.cams.map(c=>`<option value="${c.id}"${lc&&lc.id===c.id?' selected':''}>${esc(c.title||'(이름 없음)')}${c.operator?' · '+esc(c.operator):''}${linkedSyms(c.id).length&&!(lc&&lc.id===c.id)?' (배치됨)':''}</option>`).join('')}</select></div>`;
       if(lc){const al=autoLines(lc);
-        h+=`<div class="row"><label>캠 이름</label><input type="text" data-t="camf" data-f="title" value="${esc(lc.title)}"></div>
+        h+=`<div class="row"><label>카메라</label>${camNoSel(lc,'data-t="camf" data-f="no"')}</div>
+        <div class="row"><label>역할</label><input type="text" data-t="camf" data-f="role" value="${esc(lc.role)}" placeholder="${lc.no==='etc'?'캠 이름':'예: Main'}"></div>
         <div class="row"><label>오퍼레이터</label><input type="text" data-t="camf" data-f="operator" value="${esc(lc.operator)}" placeholder="이름"></div>
         <div class="row"><label>둘째 줄</label><input type="text" data-k="labelExtra" data-t="str" value="${esc(o.labelExtra||'')}" placeholder="${esc(al[1]||'비워두면 없음')}"></div>
         <p class="hint" style="margin:-2px 0 8px">🔗 왼쪽 장비 목록과 실시간 연동 — 어느 쪽에서 고쳐도 같이 바뀝니다.</p>`}
@@ -1418,7 +1428,7 @@ function applyField(el,final){
   const k=el.dataset.k,t=el.dataset.t;
   for(const o of selObjs()){
     if(t==='camlink'){if(!isCamSym(o))continue;if(el.value){o.camId=el.value;o.labelExtra=o.labelExtra||''}else{o.label=labelText(o);delete o.camId}continue}
-    if(t==='camf'){const c=camById(o.camId);if(!c)continue;c[el.dataset.f]=el.value;const ci=doc.cams.indexOf(c);const li=camsEl.querySelector(`.cam[data-ci="${ci}"] [data-f="${el.dataset.f}"]`);if(li)li.value=el.value;break}
+    if(t==='camf'){const c=camById(o.camId);if(!c)continue;c[el.dataset.f]=el.value;if(el.dataset.f==='no'||el.dataset.f==='role')camTitle(c);const ci=doc.cams.indexOf(c);const li=camsEl.querySelector(`.cam[data-ci="${ci}"] [data-f="${el.dataset.f}"]`);if(li)li.value=el.value;break}
     if(!(k in o)&&!['r','ls','lc','opacity','rot','labelExtra'].includes(k))continue;
     if(t==='mm'){const v=parseFloat(el.value);if(isNaN(v))continue;let n=v*4;if(k==='w'||k==='h')n=Math.max(1,n);
       if(o.type==='symbol'&&(k==='w'||k==='h')){const r=o.w/o.h,cx=o.x+o.w/2,cy=o.y+o.h/2;if(k==='w'){o.w=n;o.h=n/r}else{o.h=n;o.w=n*r}o.x=cx-o.w/2;o.y=cy-o.h/2}else o[k]=n}
