@@ -168,7 +168,7 @@ html,body{overscroll-behavior:none}
   body[data-sheet="list"] #left,body[data-sheet="settings"] #left{display:block}
   body[data-sheet="list"] #secDoc,body[data-sheet="list"] #secWm,body[data-sheet="settings"] #secCams{display:none}
   body[data-sheet="lib"] #right,body[data-sheet="insp"] #right,body[data-sheet="layers"] #right{display:block}
-  body[data-sheet="lib"] #right>.sec:not(#secLib),body[data-sheet="insp"] #right>.sec:not(#inspSec),body[data-sheet="layers"] #right>.sec:not(#secLayers){display:none}
+  body[data-sheet="lib"] #right>.sec:not(#secLib),body[data-sheet="insp"] #right>.sec:not(#inspSec):not(#secAlign),body[data-sheet="layers"] #right>.sec:not(#secLayers){display:none}
   #layers{max-height:none}
   #mnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:25;height:calc(60px + env(safe-area-inset-bottom));padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);background:#141415;border-top:1px solid var(--line)}
   #mnav button{flex:1;background:none;border:0;border-radius:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--muted);padding:0}
@@ -278,6 +278,11 @@ table.xl{border-collapse:separate;border-spacing:0;table-layout:fixed;user-selec
 .cd-del{color:#ff9b9b}.armed{background:#7a2b2b!important;color:#fff!important}
 .cu-docs{flex-basis:100%}.cu-docs .cdoc{padding-left:16px;background:#2b2b2e;border-radius:6px;margin-top:4px}
 @media (max-width:760px){#bAcct .an,#acctSt{display:none!important}}
+
+#secAlign .alrow{display:flex;align-items:center;gap:4px;margin-bottom:8px}#secAlign .alrow:last-child{margin-bottom:0}
+#alTo{flex:1}
+.alb{width:34px;height:32px;padding:0;display:grid;place-items:center;background:var(--field);color:#d7d7dc}
+.alb svg{width:20px;height:20px}.alb:disabled{opacity:.35;cursor:default}.alb:not(:disabled):hover{color:#fff;border-color:var(--acc)}
 ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#47474c;border-radius:6px;border:2px solid var(--panel)}::-webkit-scrollbar-track{background:transparent}
 </style>
 </head>
@@ -380,6 +385,13 @@ table.xl{border-collapse:separate;border-spacing:0;table-layout:fixed;user-selec
       <div class="lib" id="libInst"></div>
       <div class="libh">구역 · 도형</div>
       <div class="lib" id="libShape" style="margin-bottom:0"></div>
+    </div>
+    <div class="sec" id="secAlign">
+      <h3>정렬 <small id="alHint">오브젝트를 선택하세요</small></h3>
+      <div class="alrow"><select id="alTo" title="정렬 기준">
+        <option value="sel">선택 영역에 정렬</option><option value="plan">네모칸(평면도)에 정렬</option><option value="page">대지(A4)에 정렬</option></select></div>
+      <div class="alrow"><button class="alb" data-al2="l" title="왼쪽 정렬"><svg viewBox="0 0 24 24"><path d="M4 3v18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="6" y="6" width="13" height="4" fill="currentColor"/><rect x="6" y="14" width="8" height="4" fill="currentColor"/></svg></button><button class="alb" data-al2="hc" title="가로 가운데 정렬"><svg viewBox="0 0 24 24"><path d="M12 3v18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="5" y="6" width="14" height="4" fill="currentColor"/><rect x="7.5" y="14" width="9" height="4" fill="currentColor"/></svg></button><button class="alb" data-al2="r" title="오른쪽 정렬"><svg viewBox="0 0 24 24"><path d="M20 3v18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="5" y="6" width="13" height="4" fill="currentColor"/><rect x="10" y="14" width="8" height="4" fill="currentColor"/></svg></button><button class="alb" data-al2="t" title="위쪽 정렬"><svg viewBox="0 0 24 24"><path d="M3 4h18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="6" y="6" width="4" height="13" fill="currentColor"/><rect x="14" y="6" width="4" height="8" fill="currentColor"/></svg></button><button class="alb" data-al2="vc" title="세로 가운데 정렬"><svg viewBox="0 0 24 24"><path d="M3 12h18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="7.5" width="4" height="9" fill="currentColor"/></svg></button><button class="alb" data-al2="b" title="아래쪽 정렬"><svg viewBox="0 0 24 24"><path d="M3 20h18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="6" y="5" width="4" height="13" fill="currentColor"/><rect x="14" y="10" width="4" height="8" fill="currentColor"/></svg></button></div>
+      <div class="alrow"><span class="hint" style="margin-right:auto">분배</span><button class="alb" data-al2="dh" title="가로 간격 균등 분배 (3개 이상)"><svg viewBox="0 0 24 24"><path d="M4 4v16M12 4v16M20 4v16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/><rect x="2.5" y="8" width="3" height="8" fill="currentColor"/><rect x="10.5" y="6" width="3" height="12" fill="currentColor"/><rect x="18.5" y="9" width="3" height="6" fill="currentColor"/></svg></button><button class="alb" data-al2="dv" title="세로 간격 균등 분배 (3개 이상)"><svg viewBox="0 0 24 24"><path d="M4 4h16M4 12h16M4 20h16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/><rect x="8" y="2.5" width="8" height="3" fill="currentColor"/><rect x="6" y="10.5" width="12" height="3" fill="currentColor"/><rect x="9" y="18.5" width="6" height="3" fill="currentColor"/></svg></button></div>
     </div>
     <div class="sec" id="inspSec">
       <h3 id="inspTitle">속성</h3>
@@ -1079,17 +1091,27 @@ function hideSel(){if(!sel.size)return;for(const o of selObjs())o.hidden=true;se
 function showAll(){const u=doc.objects.filter(o=>o.hidden);u.forEach(o=>o.hidden=false);sel=new Set(u.map(o=>o.id));commit();buildInspector();render()}
 let nudgeT=0;
 function nudge(dx,dy){for(const o of selObjs())moveObj(o,dx,dy);render();clearTimeout(nudgeT);nudgeT=setTimeout(()=>{commit();buildInspector()},350)}
-function align(m){
-  const objs=selObjs();if(objs.length<2)return;const bs=objs.map(o=>aabb(o,false)),U=union(bs);
-  if(m==='dh'||m==='dv'){if(objs.length<3)return;const k=m==='dh'?'x':'y',s=m==='dh'?'w':'h';
-    const idx=objs.map((o,i)=>i).sort((a,b)=>(bs[a][k]+bs[a][s]/2)-(bs[b][k]+bs[b][s]/2));
-    const c0=bs[idx[0]][k]+bs[idx[0]][s]/2,c1=bs[idx[idx.length-1]][k]+bs[idx[idx.length-1]][s]/2,step=(c1-c0)/(idx.length-1);
-    idx.forEach((i,n)=>{const c=bs[i][k]+bs[i][s]/2,d=c0+n*step-c;moveObj(objs[i],k==='x'?d:0,k==='y'?d:0)})}
-  else objs.forEach((o,i)=>{const b=bs[i];let dx=0,dy=0;
-    if(m==='l')dx=U.x-b.x;if(m==='hc')dx=U.x+U.w/2-b.x-b.w/2;if(m==='r')dx=U.x+U.w-b.x-b.w;
-    if(m==='t')dy=U.y-b.y;if(m==='vc')dy=U.y+U.h/2-b.y-b.h/2;if(m==='b')dy=U.y+U.h-b.y-b.h;moveObj(o,dx,dy)});
+function alignUnits(objs){const m=new Map();for(const o of objs){const k=o.groupId||o.id;if(!m.has(k))m.set(k,[]);m.get(k).push(o)}return[...m.values()].map(os=>({os,b:union(os.map(o=>aabb(o,false)))}))}
+function planBoxFor(U){const cx=U.x+U.w/2,cy=U.y+U.h/2;let best=null;
+  for(const o of doc.objects){if(o.hidden||o.type!=='rect'||sel.has(o.id))continue;const b=aabb(o,false);
+    if(cx>=b.x&&cx<=b.x+b.w&&cy>=b.y&&cy<=b.y+b.h&&b.w>=U.w&&b.h>=U.h&&(!best||b.w*b.h<best.w*best.h))best=b}
+  return best||{...PLAN};}
+function align(m,to){
+  const objs=selObjs();if(!objs.length)return;const units=alignUnits(objs),U=union(units.map(u=>u.b));
+  to=to||($('#alTo')?$('#alTo').value:'sel');if(to==='sel'&&units.length<2)to='plan';
+  if(m==='dh'||m==='dv'){if(units.length<3){toast('간격 분배는 3개 이상 선택했을 때 쓸 수 있어요');return}
+    const k=m==='dh'?'x':'y',sz=m==='dh'?'w':'h',c=u=>u.b[k]+u.b[sz]/2,us=units.slice().sort((a,b)=>c(a)-c(b));
+    let c0=c(us[0]),c1=c(us[us.length-1]);if(to!=='sel'){const T=to==='page'?{x:0,y:0,w:PW,h:PH}:planBoxFor(U);const half0=us[0].b[sz]/2,half1=us[us.length-1].b[sz]/2;c0=T[k]+half0;c1=T[k]+T[sz]-half1}
+    const step=(c1-c0)/(us.length-1);us.forEach((u,n)=>{const d=c0+n*step-c(u);for(const o of u.os)moveObj(o,k==='x'?d:0,k==='y'?d:0)})}
+  else{const T=to==='sel'?U:to==='page'?{x:0,y:0,w:PW,h:PH}:planBoxFor(U);
+    for(const u of units){const b=u.b;let dx=0,dy=0;
+      if(m==='l')dx=T.x-b.x;if(m==='hc')dx=T.x+T.w/2-b.x-b.w/2;if(m==='r')dx=T.x+T.w-b.x-b.w;
+      if(m==='t')dy=T.y-b.y;if(m==='vc')dy=T.y+T.h/2-b.y-b.h/2;if(m==='b')dy=T.y+T.h-b.y-b.h;for(const o of u.os)moveObj(o,dx,dy)}}
   commit();buildInspector();render();
 }
+function updAlignPanel(){const n=selObjs().length,units=n?alignUnits(selObjs()).length:0,to=$('#alTo').value;
+  document.querySelectorAll('#secAlign .alb').forEach(b=>{const k=b.dataset.al2;b.disabled=!n||((k==='dh'||k==='dv')&&units<3)});
+  $('#alHint').textContent=!n?'오브젝트를 선택하세요':(to==='sel'&&units<2?'1개 선택 → 네모칸 기준':`${units}개 선택`)}
 
 /* ================= view ================= */
 function fit(){const r=stage.getBoundingClientRect();const ph=mqPhone.matches,tab=mqCompact.matches&&!ph;const ml=tab?72:0,mt=ph?56:0,m=r.width<800?20:60;
@@ -1441,12 +1463,11 @@ const numF=(k,label,v,t='num',step=0.5)=>`<div class="fld"><span>${label}</span>
 const rowNum=(k,label,v,step=0.5,min=0)=>`<div class="row"><label>${label}</label><input type="number" step="${step}" min="${min}" data-k="${k}" data-t="num" value="${r2(v)}"></div>`;
 const fontSel=(k,v)=>`<select data-k="${k}" data-t="str">${Object.entries(FONT_NAMES).map(([f,n])=>`<option value="${f}"${v===f?' selected':''}>${n}</option>`).join('')}</select>`;
 function buildInspector(){
-  const objs=selObjs(),el=$('#insp');updSelbar();
+  const objs=selObjs(),el=$('#insp');updSelbar();if($('#alTo'))updAlignPanel();
   if(!objs.length){$('#inspTitle').textContent='속성';el.innerHTML=`<p class="hint" style="margin:0">오브젝트를 선택하면 여기서 크기·색상·라벨을 바꿀 수 있어요.<br><br>
     <b>카메라 라벨</b>은 왼쪽 장비 목록의 캠 이름·오퍼레이터와 자동으로 연동돼요. 캠 카드의 ‘＋ 평면도에 배치’로 바로 놓을 수 있습니다.</p>`;return}
   const o=objs[0],multi=objs.length>1;let h='';
   $('#inspTitle').textContent=multi?`${objs.length}개 선택됨`:(o.type==='symbol'?SYM[o.kind].name:TN[o.type]);
-  if(multi){h+=`<div class="alignbar"><button data-al="l" title="왼쪽 정렬">⇤</button><button data-al="hc" title="가로 가운데">↔</button><button data-al="r" title="오른쪽 정렬">⇥</button><button data-al="t" title="위쪽 정렬">⤒</button><button data-al="vc" title="세로 가운데">↕</button><button data-al="b" title="아래쪽 정렬">⤓</button><button data-al="dh" title="가로 간격 균등">⋯</button><button data-al="dv" title="세로 간격 균등">⋮</button></div>`}
   if(!multi&&o.type!=='line'){
     if(o.type==='text')h+=`<div class="g2">${numF('x','X',o.x,'mm')}${numF('y','Y',o.y,'mm')}</div>`;
     else h+=`<div class="g2">${numF('x','X',o.x,'mm')}${numF('y','Y',o.y,'mm')}</div><div class="g2">${numF('w','W',o.w,'mm')}${numF('h','H',o.h,'mm')}</div>`;
@@ -1510,7 +1531,6 @@ insp.addEventListener('input',e=>{const el=e.target;if(!el.dataset.t||el.dataset
 insp.addEventListener('change',e=>{const el=e.target;if(!el.dataset.t)return;applyField(el,true);commit();render();
   if(el.dataset.t==='camlink'||el.dataset.t==='kind'){buildInspector();updateCamLinks();refreshHL(true)}});
 insp.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.al)align(b.dataset.al);
   const c=b.dataset.cmd;if(!c)return;
   if(['front','fwd','bwd','back'].includes(c))arrange(c);else if(c==='dup')duplicate();else if(c==='lock')lockSel();else if(c==='del')del()});
 
@@ -1607,6 +1627,8 @@ $('#bZi').onclick=()=>zoomBy(1.25);$('#bZo').onclick=()=>zoomBy(0.8);$('#bFit').
 $('#bGrid').onclick=()=>{ui.grid=!ui.grid;render()};
 const toggleSmart=()=>{ui.smart=!ui.smart;try{localStorage.setItem('vision-smart',ui.smart?'1':'0')}catch(_){}toast(ui.smart?'자동 정렬 켜짐 · 끌 때 네모칸과 다른 오브젝트에 맞춰 붙어요':'자동 정렬 꺼짐');render()};
 $('#bGuide').onclick=toggleSmart;
+$('#secAlign').addEventListener('click',e=>{const b=e.target.closest('[data-al2]');if(b&&!b.disabled)align(b.dataset.al2)});
+$('#alTo').addEventListener('change',updAlignPanel);
 try{if(localStorage.getItem('vision-smart')==='0')ui.smart=false}catch(_){}
 $('#bHelp').onclick=showHelp;
 $('#bMore').onclick=()=>{
