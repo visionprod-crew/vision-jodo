@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="vision-build" content="2026-11-22 07:30 KST">
+<meta name="vision-build" content="2026-11-22 07:50 KST">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#141415">
@@ -996,6 +996,7 @@ let recover=null;
 function renderTabs(){
   const z=t=>Math.round(((tabs.indexOf(t)===active?view.z:(t.view&&t.view.z))||0)*PW/BASE_PX*100);
   const tt=(t,i)=>{const d=i===active?doc:t.doc;return mode==='sheet'&&d.sheet?sheetTitle(d):d.title};
+  if(typeof syncSubs==='function')syncSubs();
   const key=JSON.stringify([mode,active,tabs.map((t,i)=>[tt(t,i),isDirty(i),z(t)]),recover?recover.docs.length:0]);
   if(key===tabsKey)return;tabsKey=key;
   $('#tabs').innerHTML=tabs.map((t,i)=>{const title=tt(t,i)||'제목 없음';const zz=mode==='sheet'?0:z(t);
@@ -2108,7 +2109,7 @@ async function exportSheet(fmt,orient,x){
 
 /* ================= accounts + cloud save (Firebase) ================= */
 const FB_VER='10.14.1',ADMIN_NAME='admin',MAIL_DOMAIN='vision-jodo.app';
-const CLOUD={ready:false,disabled:false,failed:false,user:null,profile:null,fb:null,isAdmin:false,status:'',uploaded:new Set(),timers:new Map(),firstAuth:false};
+const CLOUD={ready:false,disabled:false,failed:false,user:null,profile:null,fb:null,isAdmin:false,status:'',uploaded:new Set(),timers:new Map(),firstAuth:false,cid:Math.random().toString(36).slice(2)+Date.now().toString(36),subs:new Map(),subKey:'',toastAt:0};
 const nameKey=n=>String(n||'').trim().normalize('NFC').toLowerCase();
 const nameEmail=n=>'u'+[...new TextEncoder().encode(nameKey(n))].map(b=>b.toString(16).padStart(2,'0')).join('')+'@'+MAIL_DOMAIN;
 const fmtTime=ms=>{if(!ms)return'-';const d=new Date(ms),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`};
@@ -2142,7 +2143,7 @@ async function loadProfile(){
     return true;
   }catch(e){console.error(e);toast('계정 정보를 불러오지 못했어요');return false}
 }
-function setCloudStatus(s){CLOUD.status=s;const el=$('#acctSt');if(el){el.textContent=({saving:'저장 중…',saved:'☁ 저장됨',error:'⚠ 저장 실패',offline:'오프라인'})[s]||'';el.dataset.st=s}}
+function setCloudStatus(s){CLOUD.status=s;const el=$('#acctSt');if(el){el.textContent=({saving:'저장 중…',saved:'☁ 저장됨',synced:'⇄ 다른 기기 변경 반영',error:'⚠ 저장 실패',offline:'오프라인'})[s]||'';el.dataset.st=s}}
 function updAcct(){
   const b=$('#bAcct');if(!b)return;
   if(CLOUD.disabled){b.style.display='none';$('#acctSt').style.display='none';return}
@@ -2218,7 +2219,7 @@ function cloudOnCommit(){
   if(!t.cloud){if(hi<1)return;t.cloud={uid:CLOUD.user.uid,id:uid()}}
   queueCloudSave(t);
 }
-function queueCloudSave(t,delay=1500){
+function queueCloudSave(t,delay=600){
   if(!CLOUD.user||!t.cloud)return;if(t.cloud.uid!==CLOUD.user.uid&&!CLOUD.isAdmin)return;clearTimeout(CLOUD.timers.get(t.id));setCloudStatus('saving');
   CLOUD.timers.set(t.id,setTimeout(()=>cloudSave(t),delay));
 }
@@ -2240,9 +2241,64 @@ async function cloudSave(t){
       const s=await shrinkAsset(a);if(s!==a){assets[aid]=s}
       await F.setDoc(F.doc(db,'users',u,'assets',aid),{src:s.src,w:s.w,h:s.h});CLOUD.uploaded.add(u+'/'+aid)}
     const data=JSON.stringify(d);
-    await F.setDoc(F.doc(db,'users',u,'docs',t.cloud.id),{title:d.title||'제목 없음',data,assets:Object.keys(used).filter(k=>k!=='logo'),cams:d.cams.length,updatedAt:F.serverTimestamp(),clientUpdated:Date.now(),by:CLOUD.profile?.name||''});
-    t.saved=snapAt;tabsKey='';renderTabs();setCloudStatus(navigator.onLine===false?'offline':'saved');
+    await F.setDoc(F.doc(db,'users',u,'docs',t.cloud.id),{title:d.title||'제목 없음',data,assets:Object.keys(used).filter(k=>k!=='logo'),cams:d.cams.length,updatedAt:F.serverTimestamp(),clientUpdated:Date.now(),by:CLOUD.profile?.name||'',cid:CLOUD.cid});
+    t.base=data;t.saved=snapAt;tabsKey='';renderTabs();setCloudStatus(navigator.onLine===false?'offline':'saved');
   }catch(e){console.error(e);setCloudStatus('error');if(String(e.code).includes('permission'))toast('저장 권한이 없어요 (차단된 계정이거나 서버 규칙 문제)');}
+}
+
+/* ---------- real-time sync between devices ---------- */
+function syncSubs(){
+  if(!CLOUD.fb)return;
+  const want=CLOUD.user?tabs.filter(t=>t.cloud).map(t=>t.cloud.uid+'/'+t.cloud.id):[];const key=want.join('|');
+  if(key===CLOUD.subKey)return;CLOUD.subKey=key;const W=new Set(want),{F,db}=CLOUD.fb;
+  for(const[k,un]of CLOUD.subs)if(!W.has(k)){un();CLOUD.subs.delete(k)}
+  for(const k of W)if(!CLOUD.subs.has(k)){const[u,id]=k.split('/');
+    CLOUD.subs.set(k,F.onSnapshot(F.doc(db,'users',u,'docs',id),sn=>onRemote(k,sn),e=>console.warn('live sync',e)))}
+}
+function onRemote(k,sn){
+  if(!sn.exists()||sn.metadata.hasPendingWrites)return;const v=sn.data();if(!v||v.cid===CLOUD.cid||typeof v.data!=='string')return;
+  const t=tabs.find(t=>t.cloud&&t.cloud.uid+'/'+t.cloud.id===k);if(!t)return;t.remote=v;tryApplyRemote(t);
+}
+const J=x=>JSON.stringify(x);
+function editingField(){const a=document.activeElement;return !!a&&(a.isContentEditable||a.tagName==='TEXTAREA'||(a.tagName==='INPUT'&&!['range','checkbox','radio','color','button','file'].includes(a.type)))}
+function mergeArr(b,l,r){
+  if(![b,l,r].every(a=>Array.isArray(a)&&a.every(x=>x&&x.id!=null)))return null;
+  const bm=new Map(b.map(x=>[x.id,x])),lm=new Map(l.map(x=>[x.id,x])),rm=new Map(r.map(x=>[x.id,x])),out=[];
+  for(const x of r){const li=lm.get(x.id),bi=bm.get(x.id);
+    if(!li){if(bi&&J(bi)===J(x))continue;out.push(x)}       // deleted here & untouched there → stays deleted
+    else out.push(bi&&J(li)===J(bi)?x:li)}                   // changed here → keep mine, else take theirs
+  l.forEach((x,i)=>{if(rm.has(x.id))return;const bi=bm.get(x.id);
+    if(!bi||J(bi)!==J(x))out.splice(Math.min(i,out.length),0,x)}); // new here, or edited here while deleted there
+  return out;
+}
+function merge3(base,loc,rem){
+  if(!base)return loc;const out={};
+  for(const k of new Set([...Object.keys(loc),...Object.keys(rem)])){
+    const m=(k==='objects'||k==='cams')?mergeArr(base[k]||[],loc[k]||[],rem[k]||[]):null;
+    const val=m||(J(loc[k])!==J(base[k])?loc[k]:rem[k]);if(val!==undefined)out[k]=val}
+  return out;
+}
+async function tryApplyRemote(t){
+  const v=t.remote;if(!v||!tabs.includes(t))return;const isAct=t===tabs[active];
+  if(isAct&&(drag||pinch||editingField())){clearTimeout(t.rt);t.rt=setTimeout(()=>tryApplyRemote(t),400);return}
+  t.remote=null;
+  const cur=isAct?hist[hi]:t.hist[t.hi];if(v.data===cur){t.base=v.data;return}
+  const u=t.cloud.uid,{F,db}=CLOUD.fb;
+  for(const aid of v.assets||[]){if(assets[aid])continue;try{const as=await F.getDoc(F.doc(db,'users',u,'assets',aid));if(as.exists())assets[aid]=as.data();CLOUD.uploaded.add(u+'/'+aid)}catch(e){}}
+  if(t.remote)return tryApplyRemote(t); // a newer one arrived meanwhile
+  if(isAct&&(drag||pinch||editingField())){t.remote=v;return tryApplyRemote(t)}
+  const now=t===tabs[active]?hist[hi]:t.hist[t.hi];
+  const mine=now!==(t.base??t.saved);
+  let merged;try{const rem=JSON.parse(v.data);merged=mine?merge3(t.base?JSON.parse(t.base):null,JSON.parse(now),rem):rem;merged=normalize(merged)}catch(e){console.error(e);return}
+  t.base=v.data;const js=JSON.stringify(merged);if(js===now){return}
+  const act=t===tabs[active];if(act)stash();
+  t.doc=merged;t.hist=t.hist.slice(0,t.hi+1);t.hist.push(js);if(t.hist.length>200)t.hist.shift();t.hi=t.hist.length-1;
+  if(!mine||js===v.data)t.saved=js;
+  t.sel=new Set([...(t.sel||[])].filter(id=>merged.objects.some(o=>o.id===id)));
+  if(act){const m=mode;activate(active);if(m==='sheet'&&typeof renderSheet==='function')renderSheet()}else{tabsKey='';renderTabs()}
+  if(mine&&js!==v.data)queueCloudSave(t,300);
+  autosave();setCloudStatus('synced');clearTimeout(CLOUD.stT);CLOUD.stT=setTimeout(()=>{if(CLOUD.status==='synced')setCloudStatus('saved')},2500);
+  if(Date.now()-CLOUD.toastAt>15000){CLOUD.toastAt=Date.now();toast(`${v.by?v.by+'님이 ':''}다른 기기에서 수정한 내용이 반영됐어요`)}
 }
 async function openCloudDoc(u,id,ownerName){
   const ex=tabs.findIndex(t=>t.cloud&&t.cloud.uid===u&&t.cloud.id===id);if(ex>=0){switchTab(ex);return}
@@ -2251,7 +2307,7 @@ async function openCloudDoc(u,id,ownerName){
     const snap=await F.getDoc(F.doc(db,'users',u,'docs',id));if(!snap.exists()){toast('문서를 찾을 수 없어요');return}
     const v=snap.data(),d=normalize(JSON.parse(v.data));
     for(const aid of v.assets||[]){if(assets[aid])continue;const as=await F.getDoc(F.doc(db,'users',u,'assets',aid));if(as.exists())assets[aid]=as.data();CLOUD.uploaded.add(u+'/'+aid)}
-    addTab(d,true);tabs[active].cloud={uid:u,id,owner:ownerName||null};tabsKey='';renderTabs();
+    addTab(d,true);tabs[active].cloud={uid:u,id,owner:ownerName||null};tabs[active].base=v.data;tabsKey='';renderTabs();
     if(ownerName)toast(`${ownerName}님의 조감도를 열었어요 · 수정하면 그 계정에 저장됩니다`);
   }catch(e){console.error(e);toast('불러오지 못했어요')}finally{$('#busy').classList.remove('on');$('#busy').textContent='내보내는 중…'}
 }
