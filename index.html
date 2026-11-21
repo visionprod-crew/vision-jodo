@@ -47,6 +47,8 @@ input[type=checkbox]{accent-color:var(--acc)}
 .tool.on .k{color:#ffe1cc}
 .tsep{width:24px;height:1px;background:var(--line);margin:5px 0}
 #vp{position:relative;overflow:hidden;background:#3b3b3f}
+#stage.moving text{text-rendering:optimizeSpeed}
+#stage.moving{shape-rendering:optimizeSpeed}
 #stage{position:absolute;top:34px;left:0;right:0;bottom:0;width:100%;height:calc(100% - 34px);display:block;touch-action:none;user-select:none}
 #tabs{position:absolute;top:0;left:0;right:0;height:34px;background:#29292c;border-bottom:1px solid #18181a;display:flex;align-items:stretch;overflow-x:auto;overflow-y:hidden;z-index:2;scrollbar-width:none}
 #tabs::-webkit-scrollbar{display:none}
@@ -349,8 +351,9 @@ table.xl{border-collapse:separate;border-spacing:0;table-layout:fixed;user-selec
     </defs>
     <defs id="adefs"></defs>
     <g id="world">
-      <rect x="0" y="0" width="1188" height="840" fill="#fff" filter="url(#psh)"/>
-      <g clip-path="url(#pclip)"><g id="content"></g></g>
+      <rect x="2" y="5" width="1188" height="840" fill="rgba(0,0,0,.22)"/><rect x="0.5" y="2" width="1188" height="840" fill="rgba(0,0,0,.12)"/>
+      <rect x="0" y="0" width="1188" height="840" fill="#fff"/>
+      <g clip-path="url(#pclip)"><g id="content"><g id="cList"></g><g id="cObjs"></g><g id="cWm"></g></g></g>
       <g id="ov"></g>
     </g>
   </svg></main>
@@ -570,7 +573,8 @@ const mc=document.createElement('canvas').getContext('2d');
 function resetAssets(){assets={logo:{src:LOGO_SRC,w:1000,h:320}}}
 
 /* ================= text measure ================= */
-function tw(s,size,fam,wt){mc.font=`${wt} ${size}px ${fam}`;return mc.measureText(s).width}
+const TWC=new Map();let fontsV=0;
+function tw(s,size,fam,wt){const k=wt+'|'+size+'|'+fam+'|'+s;let v=TWC.get(k);if(v===undefined){mc.font=`${wt} ${size}px ${fam}`;v=mc.measureText(s).width;if(TWC.size>20000)TWC.clear();TWC.set(k,v)}return v}
 const lineOff=(lh,size)=>lh/2+size*0.35;
 function textBox(o){
   const lines=String(o.text??'').split('\n'), fam=FONTS[o.font]||FONTS.gothic, wt=o.font==='gothic'?o.weight:400;
@@ -810,12 +814,23 @@ function overlaySVG(){
   return h;
 }
 let rq=0;
+const RC={listKey:'',order:'',gk:'',wmKey:'',sigs:new Map(),els:new Map(),vt:'',ovKey:''};
 function render(){
   rq=0;syncDefs();
-  lastLayout=listLayout();
-  content.innerHTML=svgList(lastLayout)+doc.objects.map(svgObj).join('')+svgWM();
-  world.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.z})`);
-  ov.innerHTML=overlaySVG();
+  if(mode==='sheet'&&RC.order)return renderViewOnly();
+  const lk=JSON.stringify([doc.title,doc.subtitle,doc.cams,doc.listCfg,doc.fontStyle,doc.showCat,doc.listBox,doc.wm.show,doc.wm.w,doc.wm.asset,fontsV]);
+  if(lk!==RC.listKey||!lastLayout){RC.listKey=lk;lastLayout=listLayout();$('#cList').innerHTML=svgList(lastLayout)}
+  const host=$('#cObjs'),ids=doc.objects.map(o=>o.id).join(','),gk=JSON.stringify([doc.labelFmt,doc.labelBox,doc.cams.map(c=>[c.id,c.title,c.operator]),fontsV,Object.keys(assets).length]);
+  if(ids!==RC.order||gk!==RC.gk){
+    host.innerHTML=doc.objects.map(o=>`<g data-oid="${o.id}">${svgObj(o)}</g>`).join('');
+    RC.sigs=new Map(doc.objects.map(o=>[o.id,JSON.stringify(o)]));RC.els=new Map([...host.children].map(g=>[g.dataset.oid,g]));RC.order=ids;RC.gk=gk;
+  }else for(const o of doc.objects){const sig=JSON.stringify(o);if(RC.sigs.get(o.id)!==sig){RC.sigs.set(o.id,sig);const g=RC.els.get(o.id);if(g)g.innerHTML=svgObj(o)}}
+  const wk=JSON.stringify([doc.wm,!!assets[doc.wm.asset]]);if(wk!==RC.wmKey){RC.wmKey=wk;$('#cWm').innerHTML=svgWM()}
+  renderViewOnly();
+}
+function renderViewOnly(){
+  const vt=`translate(${view.x} ${view.y}) scale(${view.z})`;if(vt!==RC.vt){RC.vt=vt;world.setAttribute('transform',vt)}
+  const oh=overlaySVG();if(oh!==RC.ovKey){RC.ovKey=oh;ov.innerHTML=oh}
   $('#zoomv').textContent=Math.round(view.z*PW/BASE_PX*100)+'%';renderTabs();
   $('#bGrid').style.borderColor=ui.grid?'var(--acc)':'';
 }
@@ -1089,7 +1104,7 @@ $('#selbar').addEventListener('click',e=>{const b=e.target.closest('[data-sb]');
 function editSelected(){const o=selObjs()[0];if(!o)return;setSheet('insp');
   setTimeout(()=>{const f=$(`#insp ${o.type==='symbol'?(o.camId&&camById(o.camId)?'[data-f="operator"]':'[data-k="label"]'):'[data-k="text"]'}`);if(f){f.focus();f.select&&f.select()}},60)}
 const ptrs=new Map();let pinch=null,lastTap={t:0,id:null};
-function startPinch(){
+function startPinch(){stage.classList.add('moving');
   if(drag){if(drag.mode==='create'){doc.objects=doc.objects.filter(o=>o!==drag.o);sel.clear()}
     else if(drag.mode==='move'&&drag.start)for(const{o,s}of drag.start)Object.assign(o,s);drag=null}
   const[a,b]=[...ptrs.values()],r=stage.getBoundingClientRect();
@@ -1147,7 +1162,8 @@ stage.addEventListener('pointerdown',e=>{
 stage.addEventListener('pointermove',e=>{
   if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch){if(ptrs.size>=2)movePinch();return}
-  if(!drag)return;const p=toPage(e);
+  if(!drag)return;
+  if(!stage.classList.contains('moving'))stage.classList.add('moving');const p=toPage(e);
   if(drag.mode==='pan'){view.x=drag.vx+e.clientX-drag.sx;view.y=drag.vy+e.clientY-drag.sy;sched();return}
   drag.moved=true;
   if(drag.mode==='move'){
@@ -1183,7 +1199,7 @@ function endDrag(){
   sched();
 }
 function ptrEnd(e){
-  ptrs.delete(e.pointerId);
+  ptrs.delete(e.pointerId);if(!ptrs.size)stage.classList.remove('moving');
   if(pinch){if(ptrs.size<2){pinch=null;drag=null;tabsKey='';sched()}return}
   const d=drag;endDrag();
   if((e.pointerType==='touch'||e.pointerType==='pen')&&d&&d.mode==='move'&&!d.moved){
@@ -1558,7 +1574,8 @@ $('#bMore').onclick=()=>{
   $('#mbox').querySelectorAll('[data-mm]').forEach(b=>b.onclick=()=>{closeModal();$('#'+b.dataset.mm).click()});
 };$('#bExport').onclick=openExport;
 window.addEventListener('resize',sched);
-if(document.fonts){document.fonts.addEventListener('loadingdone',sched);document.fonts.ready.then(sched)}
+const fontsChanged=()=>{TWC.clear();fontsV++;sched()};
+if(document.fonts){document.fonts.addEventListener('loadingdone',fontsChanged);document.fonts.ready.then(fontsChanged)}
 
 /* ================= equipment sheet (Excel-like) ================= */
 const XL_PROT=new Set(['cat','name','qty','price','total','disc']);
