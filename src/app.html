@@ -1800,18 +1800,19 @@ function xlSetMerges(list){const s=XS(),TR=xlTR();
   s.merges=list.filter(g=>g.r1>=1&&g.r2<=TR&&g.c1>=0&&g.c2<xlNC()&&g.r2>=g.r1&&g.c2>=g.c1&&!(g.r1===g.r2&&g.c1===g.c2))
     .map(g=>({r1:xlRowRef(g.r1),r2:xlRowRef(g.r2),c1:s.cols[g.c1].key,c2:s.cols[g.c2].key}))}
 function xlRegions(){
-  const s=XS(),TR=xlTR(),nC=xlNC(),at=new Map(),list=[];
+  const s=XS(),TR=xlTR(),nC=xlNC(),at=new Map(),list=[],hide=new Set();
   const free=g=>{for(let r=g.r1;r<=g.r2;r++)for(let c=g.c1;c<=g.c2;c++)if(at.has(r*4096+c))return false;return true};
   const put=g=>{list.push(g);for(let r=g.r1;r<=g.r2;r++)for(let c=g.c1;c<=g.c2;c++)at.set(r*4096+c,g)};
   put({r1:0,r2:0,c1:0,c2:nC-1,kind:'title'});
   for(const g of xlMergesIdx())if(free(g))put(Object.assign(g,{kind:'user'}));
   const ci=xlCI('cat'),split=new Set(s.catSplit||[]);let i=0;
   if(ci>=0)while(i<s.rows.length){let j=i;const c=s.rows[i].cat;if(c!==''){while(j+1<s.rows.length&&s.rows[j+1].cat===c)j++}
-    const g={r1:i+2,r2:j+2,c1:ci,c2:ci,kind:'cat'};if(j>i&&!split.has(s.rows[i].id)&&free(g))put(g);i=j+1}
-  return{at,list};
+    const g={r1:i+2,r2:j+2,c1:ci,c2:ci,kind:'cat'};if(j>i&&!split.has(s.rows[i].id)&&free(g))put(g);else if(j>i&&split.has(s.rows[i].id))for(let k=i+1;k<=j;k++)hide.add((k+2)*4096+ci);i=j+1}
+  return{at,list,hide};
 }
 let XR=null;
 const xlReg=(r,c)=>XR?XR.at.get(r*4096+c):null;
+const xlShown=(r,c)=>XR&&XR.hide.has(r*4096+c)?'':xlDisp(r,c);
 function selBox(){const B={r1:Math.min(SH.ar,SH.fr),r2:Math.max(SH.ar,SH.fr),c1:Math.min(SH.ac,SH.fc),c2:Math.max(SH.ac,SH.fc)};
   if(!XR)return B;let grew=true;while(grew){grew=false;for(const g of XR.list){if(g.r2<B.r1||g.r1>B.r2||g.c2<B.c1||g.c1>B.c2)continue;
     if(g.r1<B.r1){B.r1=g.r1;grew=true}if(g.r2>B.r2){B.r2=g.r2;grew=true}if(g.c1<B.c1){B.c1=g.c1;grew=true}if(g.c2>B.c2){B.c2=g.c2;grew=true}}}
@@ -1841,7 +1842,7 @@ function renderSheet(){
     if(r===0){h+=`<td data-r="0" data-c="0" colspan="${nC}" class="bd ttl" style="${xlCss(xlStyle(0,0))}">${esc(xlDisp(0,0))}</td>`}
     else for(let c=0;c<nC;c++){
       let span='';const g=xlReg(r,c);if(g){if(g.r1!==r||g.c1!==c)continue;if(g.r2>g.r1)span+=` rowspan="${g.r2-g.r1+1}"`;if(g.c2>g.c1)span+=` colspan="${g.c2-g.c1+1}"`}
-      const v=xlDisp(r,c),err=/^#[A-Z\/0!?]+!?$/.test(v)&&v.length<9;
+      const v=xlShown(r,c),err=/^#[A-Z\/0!?]+!?$/.test(v)&&v.length<9;
       h+=`<td data-r="${r}" data-c="${c}"${span} class="bd${c===ci&&r>=2&&r<TR?' cat':''}${g?' mg':''}${err?' err':''}" style="${xlCss(xlStyle(r,c))}">${esc(v)}</td>`;
     }
     h+='</tr>';
@@ -1948,17 +1949,20 @@ function xlMergeToggle(){
     commit();renderSheet();toast('셀 병합을 해제했습니다');return}
   if(B.r1===0){toast('제목 행은 이미 병합되어 있어요');return}
   if(B.r1===B.r2&&B.c1===B.c2){toast('병합할 셀을 두 칸 이상 선택해 주세요');return}
-  const vals=[];for(let r=B.r1;r<=B.r2;r++)for(let c=B.c1;c<=B.c2;c++)if(!(r===B.r1&&c===B.c1)&&xlDisp(r,c)!=='')vals.push(1);
+  const vals=[];for(let r=B.r1;r<=B.r2;r++)for(let c=B.c1;c<=B.c2;c++)if(!(r===B.r1&&c===B.c1)&&xlRaw(r,c)!=='')vals.push([r,c]);
   // re-merging a category range that was split: just clear the split instead of adding a user merge
   const ci=xlCI('cat');
   if(B.c1===ci&&B.c2===ci&&B.r1>=2&&B.r2<TR){const ids=[];for(let r=B.r1;r<=B.r2;r++)ids.push(s.rows[r-2].id);
     const same=ids.every((id,i)=>s.rows[B.r1-2+i].cat===s.rows[B.r1-2].cat);
     const isRun=same&&(B.r1===2||s.rows[B.r1-3].cat!==s.rows[B.r1-2].cat)&&(B.r2===TR-1||s.rows[B.r2-1].cat!==s.rows[B.r2-2].cat);
     if(isRun&&s.catSplit.includes(ids[0])){s.catSplit=s.catSplit.filter(x=>x!==ids[0]);commit();renderSheet();toast('셀을 병합했습니다');return}}
+  const ci2=xlCI('cat');
+  for(const[r,c]of vals){if(r===TR||r===1)continue;if(c===ci2&&r>=2)continue; // category stays per row (grouping); only its display is merged
+    xlSet(r,c,'',{quiet:1,single:1})}
   const ml=xlMergesIdx();ml.push({r1:B.r1,r2:B.r2,c1:B.c1,c2:B.c2});xlSetMerges(ml);
   const k=xlStyleKey(B.r1,B.c1);s.styles[k]=Object.assign({},s.styles[k]||{},{al:'c'});
   SH.ar=SH.fr=B.r1;SH.ac=SH.fc=B.c1;commit();renderSheet();
-  toast(vals.length?'셀을 병합했습니다 · 왼쪽 위 셀 값만 보이고, 병합을 풀면 나머지 값이 다시 보여요':'셀을 병합하고 가운데 맞춤했습니다');
+  toast(vals.length?'셀을 병합했습니다 · 왼쪽 위 셀 값만 남겼어요 (⌘Z로 되돌리기)':'셀을 병합하고 가운데 맞춤했습니다');
 }
 function xlBold(){const on=!xlStyle(SH.ar,SH.ac).b;xlStyleSel(st=>(st.b=on?1:0,st))}
 function xlFillDown(){const B=selBox();if(B.r2<=B.r1)return;for(let c=B.c1;c<=B.c2;c++){const v=xlRaw(B.r1,c);for(let r=B.r1+1;r<=B.r2;r++)xlSet(r,c,v,{quiet:1,single:1})}commit();renderSheet()}
@@ -2114,7 +2118,7 @@ function sheetCanvases(orient,k,single){
           let n=1;while(i+n<list.length&&list[i+n].r===r+n&&list[i+n].r<=g.r2)n++;
           let w=0;for(let cc=g.c1;cc<=g.c2;cc++)w+=cols[cc].w*f;
           cellBox(xs[c],y,w,RH*n,xlDisp(g.r1,g.c1),xlStyle(g.r1,g.c1),13*f);continue}
-        cellBox(xs[c],y,cols[c].w*f,RH,xlDisp(r,c),xlStyle(r,c),13*f)}
+        cellBox(xs[c],y,cols[c].w*f,RH,xlShown(r,c),xlStyle(r,c),13*f)}
     }
     return cv;
   });
